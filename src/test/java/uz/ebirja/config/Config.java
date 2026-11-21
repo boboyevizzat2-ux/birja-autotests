@@ -33,6 +33,12 @@ public final class Config {
         return v.trim();
     }
 
+    /** Ixtiyoriy sozlama: faylda bo'lmasa standart qiymat qaytariladi. */
+    public static String getOr(String key, String def) {
+        String v = P.getProperty(key);
+        return (v == null || v.isBlank()) ? def : v.trim();
+    }
+
     public static String traderUrl() { return get("trader.url"); }
     public static String adminUrl()  { return get("admin.url"); }
 }

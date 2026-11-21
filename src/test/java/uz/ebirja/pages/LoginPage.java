@@ -24,6 +24,8 @@ public class LoginPage {
     }
 
     public LoginPage open(String baseUrl) {
+        // doimiy brauzer profilida avvalgi seans qolgan bo'lishi mumkin — chiqib olamiz
+        uz.ebirja.base.Ui.logout(d, baseUrl);
         d.get(baseUrl + "/uz/auth/login");
         wait.until(ExpectedConditions.visibilityOfElementLocated(loginInput));
         return this;

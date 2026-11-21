@@ -15,3 +15,9 @@ admin2.password=
 
 # E-IMZO test kaliti paroli
 eimzo.password=
+
+# Auksion testi sozlamalari
+auction.product=Асбестовый шнур
+auction.lots=10
+auction.bidLots=1
+auction.minutes=2

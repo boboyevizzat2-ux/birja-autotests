@@ -140,6 +140,74 @@ public class ProbeSession {
         }
     }
 
+    void msgs(String label) {
+        for (WebElement e : d.findElements(By.cssSelector("[class*=toast], [class*=Toastify], [role=alert], [role=status]")))
+            try { if (e.isDisplayed() && !e.getText().isBlank()) System.out.println("  " + label + " XABAR: " + clean(e.getText())); } catch (Exception ignore) {}
+        for (WebElement m : d.findElements(By.cssSelector("[role=dialog], [class*=modal], [class*=Modal]")))
+            try { if (m.isDisplayed() && !m.getText().isBlank()) System.out.println("  " + label + " OYNA: " + clean(m.getText()).substring(0, Math.min(500, clean(m.getText()).length()))); } catch (Exception ignore) {}
+    }
+
+    WebElement dealRow(String deal) {
+        for (WebElement r : d.findElements(By.cssSelector("main tbody tr"))) if (r.getText().contains(deal)) return r;
+        return null;
+    }
+
+    /** Admin: Bitimlar sahifasida bitimni topib tasdiqlaydi/imzolaydi. */
+    void adminDeal(String ab, String deal) throws Exception {
+        d.get(ab + "/uz/moderationv2/contracts");
+        Thread.sleep(7000);
+        List<String> tabs = new ArrayList<>();
+        for (WebElement t : d.findElements(By.cssSelector("main button"))) try { if (t.isDisplayed() && !t.getText().isBlank() && t.getText().length() < 45) tabs.add(clean(t.getText())); } catch (Exception ignore) {}
+        System.out.println("Bitimlar tugmalari: " + tabs);
+        for (WebElement b : d.findElements(By.xpath("//main//button[starts-with(normalize-space(.),'Tasdiqlanmagan')]")))
+            try { if (b.isDisplayed()) { js.executeScript("arguments[0].click()", b); System.out.println("'Tasdiqlanmagan' tabi ochildi"); break; } } catch (Exception ignore) {}
+        Thread.sleep(5000);
+        WebElement row = dealRow(deal);
+        if (row == null) {
+            // tablarni aylanamiz
+            for (String tb : tabs) {
+                if (tb.length() > 35) continue;
+                for (WebElement b : d.findElements(By.xpath("//main//button[normalize-space(.)=\"" + tb + "\"]"))) try { if (b.isDisplayed()) { js.executeScript("arguments[0].click()", b); break; } } catch (Exception ignore) {}
+                Thread.sleep(4000);
+                row = dealRow(deal);
+                if (row != null) { System.out.println("'" + tb + "' tabida topildi"); break; }
+            }
+        }
+        shot("admin_bitimlar");
+        if (row == null) { System.out.println(deal + " admin bitimlarida topilmadi"); return; }
+        System.out.println("Bitim: " + clean(row.getText()).substring(0, Math.min(300, clean(row.getText()).length())));
+        List<WebElement> tds = row.findElements(By.cssSelector("td"));
+        WebElement last = tds.get(tds.size() - 1);
+        List<WebElement> btns = last.findElements(By.cssSelector("button"));
+        System.out.println("Oxirgi ustundagi tugmalar: " + btns.size() + " | " + clean(last.getText()));
+        js.executeScript("arguments[0].scrollIntoView({block:'center'}); arguments[0].click();", btns.get(btns.size() - 1));
+        Thread.sleep(1500);
+        List<WebElement> items = new ArrayList<>();
+        for (WebElement e : d.findElements(By.xpath("//*[contains(text(),'Tasdiqlash') or contains(text(),'Imzolash') or contains(text(),'imzolash')]")))
+            try { if (e.isDisplayed()) items.add(e); } catch (Exception ignore) {}
+        List<String> names = new ArrayList<>();
+        for (WebElement e : items) names.add(clean(e.getText()));
+        System.out.println("Menyu bandlari: " + names);
+        msgs("M");
+        shot("admin_bitim_menyu");
+        if (items.isEmpty()) return;
+        js.executeScript("arguments[0].click()", items.get(items.size() - 1));
+        System.out.println(">>> '" + names.get(names.size() - 1) + "' bosildi");
+        Thread.sleep(2000);
+        msgs("1");
+        for (WebElement b : d.findElements(By.xpath("//*[@role='dialog' or contains(@class,'modal')]//button")))
+            try { String t = b.getText().trim(); if (b.isDisplayed() && t.matches("(?i).*(imzolash|tasdiqlash|^ha$|yuborish).*")) { System.out.println("  oynadagi '" + t + "' bosildi"); js.executeScript("arguments[0].click()", b); break; } } catch (Exception ignore) {}
+        Eimzo.typePassword(10);
+        for (int s = 0; s < 5; s++) { Thread.sleep(1000); msgs("2." + s); }
+        d.navigate().refresh();
+        Thread.sleep(6000);
+        for (WebElement s : d.findElements(By.cssSelector("main input[placeholder^='Qidir']"))) try { if (s.isDisplayed()) { s.sendKeys(deal); break; } } catch (Exception ignore) {}
+        Thread.sleep(4000);
+        WebElement r2 = dealRow(deal);
+        System.out.println("Keyin: " + (r2 == null ? "joriy tabda yo'q" : clean(r2.getText()).substring(0, Math.min(200, clean(r2.getText()).length()))));
+        shot("admin_bitim_natija");
+    }
+
     @Test
     public void probe() throws Exception {
         try (Reader r = new InputStreamReader(new FileInputStream("login.properties"), StandardCharsets.UTF_8)) { p.load(r); }
@@ -150,6 +218,8 @@ public class ProbeSession {
         try {
             String ab = p.getProperty("admin.url");
             loginKey(ab, p.getProperty("admin2.login"), false);
+            String deal = System.getProperty("deal", "");
+            if (!deal.isEmpty()) { adminDeal(ab, deal); return; }
             d.get(ab + "/uz/moderationv2/sales-schedule/auction-sales-2/trade-session");
             Thread.sleep(6000);
             String setElon = System.getProperty("elon", "");     // masalan 18:05-18:17
@@ -157,6 +227,8 @@ public class ProbeSession {
             if (!setElon.isEmpty()) {
                 editRow("Kechki sessiya", "e'lon", setElon);
                 editRow("Kechki sessiya", "Boshqalar", setSavdo);
+                String setG2 = System.getProperty("group2", "");
+                if (!setG2.isEmpty()) editRow("Kechki sessiya", "^", setG2);
                 d.navigate().refresh();
                 Thread.sleep(5000);
                 for (WebElement tr : d.findElements(By.cssSelector("main tbody tr"))) System.out.println("JADVAL: " + clean(tr.getText()));

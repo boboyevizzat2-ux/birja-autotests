@@ -73,6 +73,38 @@ public class ProbeSell {
             List<String> tabs = new ArrayList<>();
             for (WebElement t : d.findElements(By.cssSelector("main button"))) try { if (t.isDisplayed() && !t.getText().isBlank() && t.getText().length() < 40) tabs.add(clean(t.getText())); } catch (Exception ignore) {}
             System.out.println("Tugmalar: " + tabs);
+            if (Boolean.getBoolean("gavel")) {
+                // "Birja mahsulotlari" jadvali: qidiruv -> qator -> "Savdoga chiqarish" ustunidagi bolg'acha
+                for (WebElement s : d.findElements(By.cssSelector("main input[placeholder='Qidirish']")))
+                    try { if (s.isDisplayed()) { s.sendKeys(product); break; } } catch (Exception ignore) {}
+                Thread.sleep(4000);
+                WebElement r0 = null;
+                for (WebElement r : d.findElements(By.cssSelector("main tbody tr"))) if (r.isDisplayed() && r.getText().contains(product)) { r0 = r; break; }
+                if (r0 == null) { System.out.println("Birja mahsulotlarida topilmadi"); shot("gavel_yoq"); return; }
+                System.out.println("Qator: " + clean(r0.getText()));
+                WebElement g = r0.findElements(By.cssSelector("td")).get(2);
+                WebElement gb = g.findElements(By.cssSelector("button, svg")).get(0);
+                js.executeScript("arguments[0].scrollIntoView({block:'center'})", gb);
+                try { gb.click(); } catch (Exception e) { js.executeScript("arguments[0].dispatchEvent(new MouseEvent('click',{bubbles:true}))", gb); }
+                System.out.println(">>> Bolg'acha bosildi");
+                Thread.sleep(3000);
+                dumpDialogs("G1");
+                shot("gavel_oyna");
+                String lots = System.getProperty("lots", "10");
+                WebElement gl = d.findElement(By.name("graphicLot"));
+                gl.click(); gl.sendKeys(Keys.CONTROL + "a"); gl.sendKeys(lots);
+                System.out.println("  Savdoga qo'yish (graphicLot) = " + gl.getAttribute("value"));
+                WebElement ok = null;
+                for (WebElement b : d.findElements(By.xpath("//*[@role='dialog' or contains(@class,'modal')]//button")))
+                    try { String t = b.getText().trim(); if (b.isDisplayed() && t.matches("(?i).*(yuborish|tasdiqlash|savdoga|saqlash|chiqarish).*")) ok = b; } catch (Exception ignore) {}
+                if (ok == null) { System.out.println("Oynada tasdiqlash tugmasi topilmadi"); return; }
+                System.out.println(">>> '" + clean(ok.getText()) + "' bosiladi");
+                ok.click();
+                Eimzo.typePassword(8);
+                for (int s = 0; s < 5; s++) { Thread.sleep(1000); dumpDialogs("G2." + s); }
+                shot("gavel_natija");
+                return;
+            }
             // Sessiya holati (yuqoridagi yozuv)
             for (WebElement e : d.findElements(By.xpath("//main//*[contains(text(),'Yakunlangan') or contains(text(),'davom') or contains(text(),'Faol') or contains(text(),'qoldi')]")))
                 try { if (e.isDisplayed()) System.out.println("SESSIYA HOLATI: " + clean(e.getText())); } catch (Exception ignore) {}
@@ -143,6 +175,17 @@ public class ProbeSell {
                     }
                 } catch (Exception ignore) {}
             Thread.sleep(1000);
+            String today = java.time.LocalDate.now().toString();
+            for (WebElement in : d.findElements(By.cssSelector("input[name$='." + today + ".lot']")))
+                try {
+                    if (!in.isDisplayed()) continue;
+                    js.executeScript("arguments[0].scrollIntoView({block:'center', inline:'center'})", in);
+                    in.click();
+                    in.sendKeys(Keys.CONTROL + "a");
+                    in.sendKeys(System.getProperty("lots", "100"));
+                    System.out.println("  " + in.getAttribute("name") + " = " + in.getAttribute("value"));
+                } catch (Exception e) { System.out.println("  lot maydoniga yozib bo'lmadi: " + e.getMessage()); }
+            Thread.sleep(800);
             for (WebElement b : d.findElements(By.xpath("//*[@role='dialog' or contains(@class,'modal')]//button[normalize-space(.)='Yuborish']")))
                 if (b.isDisplayed()) { b.click(); System.out.println(">>> Kontraktlar oynasida 'Yuborish' bosildi"); break; }
             Eimzo.typePassword(5);

@@ -30,8 +30,25 @@ public abstract class BaseTest {
      * Chrome-ni ochadi.
      * Brauzerni ko'rsatmasdan (orqa fonda) ishga tushirish uchun: mvn test -Dheadless=true
      */
+    /** Saytlarga kompyuterdagi E-IMZO dasturiga ulanish ruxsatini oldindan beradi. */
+    public static void grantEimzo(ChromeDriver d, String... origins) {
+        for (String origin : origins) {
+            for (String perm : new String[]{"localNetworkAccess", "localNetwork", "loopbackNetwork"}) {
+                try {
+                    d.executeCdpCommand("Browser.grantPermissions",
+                            java.util.Map.of("permissions", java.util.List.of(perm), "origin", origin));
+                    System.out.println("E-IMZO ruxsati berildi: " + perm + " -> " + origin);
+                } catch (Exception ignore) {
+                    // bu Chrome versiyasida bunday ruxsat nomi yo'q
+                }
+            }
+        }
+    }
+
     protected WebDriver openBrowser() {
-        driver = new ChromeDriver(chromeOptions());
+        ChromeDriver cd = new ChromeDriver(chromeOptions());
+        grantEimzo(cd, "https://test-app.ebirja.uz", "https://test-head.ebirja.uz");
+        driver = cd;
         driver.manage().timeouts().pageLoadTimeout(Duration.ofSeconds(60));
         return driver;
     }

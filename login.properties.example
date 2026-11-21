@@ -1,0 +1,17 @@
+# Namuna fayl. Undan nusxa olib, nomini login.properties qiling va parollarni yozing.
+# login.properties GitHub-ga yuklanmaydi!
+trader.url=https://test-app.ebirja.uz
+admin.url=https://test-head.ebirja.uz
+
+trader1.login=
+trader1.password=
+trader2.login=
+trader2.password=
+
+admin1.login=
+admin1.password=
+admin2.login=
+admin2.password=
+
+# E-IMZO test kaliti paroli
+eimzo.password=

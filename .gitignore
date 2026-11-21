@@ -37,3 +37,8 @@ build/
 
 ### Mac OS ###
 .DS_Store
+### Login-parollar (GitHub-ga yuklanmaydi) ###
+login.properties
+
+### Brauzer profili (ruxsatlar, cookie) ###
+chrome-profile/

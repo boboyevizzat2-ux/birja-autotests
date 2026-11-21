@@ -1,0 +1,9 @@
+<!DOCTYPE suite SYSTEM "https://testng.org/testng-1.0.dtd">
+<suite name="eBirja avtotestlari" verbose="1">
+    <test name="Treyder">
+        <classes>
+            <class name="uz.ebirja.tests.TraderLoginTest"/>
+            <class name="uz.ebirja.tests.TraderMenuTest"/>
+        </classes>
+    </test>
+</suite>

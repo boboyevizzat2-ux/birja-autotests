@@ -17,7 +17,7 @@ public final class Eimzo {
     private Eimzo() {}
 
     /** E-IMZO jarayonining oyna sarlavhasi (oyna yo'q bo'lsa bo'sh qator). */
-    static String windowTitle() {
+    public static String windowTitle() {
         return runScript(false);
     }
 

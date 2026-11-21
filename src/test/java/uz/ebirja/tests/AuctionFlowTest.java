@@ -106,11 +106,13 @@ public class AuctionFlowTest extends BaseTest {
                 WebElement row = findContractRow(contractId);
                 Assert.assertNotNull(row, role + ": kontrakt ID " + contractId + " ro'yxatda topilmadi");
                 List<WebElement> tds = row.findElements(By.cssSelector("td"));
-                jsClick(driver, tds.get(tds.size() - 1).findElement(By.cssSelector("button")));
-                sleep(1200);
-                jsClick(driver, visible(driver, By.xpath("//*[normalize-space(text())='Tasdiqlash']")));
-                sleep(2500);
-                WebElement confirm = lastVisible(driver, By.xpath("//*[@role='dialog' or contains(@class,'modal')]//button[normalize-space(.)='Tasdiqlash']"));
+                WebElement dots = tds.get(tds.size() - 1).findElement(By.cssSelector("button"));
+                js().executeScript("arguments[0].scrollIntoView({block:'center'})", dots);
+                dots.click();
+                WebElement item = waitFor(() -> visible(driver, By.xpath("//*[normalize-space(text())='Tasdiqlash']")), 10);
+                Assert.assertNotNull(item, role + ": '⋮' menyusida 'Tasdiqlash' yo'q");
+                item.click(); // haqiqiy bosish (JS bosishga sayt javob bermaydi)
+                WebElement confirm = waitFor(() -> lastVisible(driver, By.xpath("//*[@role='dialog' or contains(@class,'modal')]//button[normalize-space(.)='Tasdiqlash']")), 10);
                 Assert.assertNotNull(confirm, role + ": tasdiqlash oynasi ochilmadi");
                 jsClick(driver, confirm);
                 Eimzo.typePassword(8);
@@ -195,20 +197,30 @@ public class AuctionFlowTest extends BaseTest {
         driver.get(base + "/uz/trader/sales/auction-sales?tradeTab=SELL");
         sleep(4000);
         jsClick(driver, waitFor(() -> visible(driver, By.xpath("//*[normalize-space(text())='Sotib olish']")), 20));
-        WebElement search = waitFor(() -> visible(driver, By.cssSelector("main input[placeholder='Qidirish']")), 20);
-        search.sendKeys(PRODUCT);
+        sleep(3000); // tab almashgach sahifa qayta chiziladi
+        Object typed = waitFor(() -> {
+            WebElement s = visible(driver, By.cssSelector("main input[placeholder='Qidirish']"));
+            if (s == null) return null;
+            s.sendKeys(PRODUCT);
+            return Boolean.TRUE;
+        }, 20);
+        Assert.assertNotNull(typed, "'Sotib olish' tabida qidiruv maydoni topilmadi");
         sleep(3000);
-        WebElement name = waitFor(() -> visible(driver, By.xpath("//*[contains(text(),'" + PRODUCT + "')]")), 20);
-        Assert.assertNotNull(name, "Savdoda '" + PRODUCT + "' kartochkasi chiqmadi");
-        WebElement card = name;
-        for (int up = 0; up < 15; up++) {
-            card = card.findElement(By.xpath("./.."));
-            if (card.getText().contains(" lot") && card.findElements(By.cssSelector("svg")).size() >= 3) break;
-        }
-        List<WebElement> icons = card.findElements(By.cssSelector("svg"));
-        WebElement gavel = icons.get(2); // 🔨 Ariza yuborish (F4)
-        try { jsClick(driver, gavel.findElement(By.xpath("./ancestor-or-self::*[self::button or @role='button' or contains(@class,'cursor-pointer')][1]"))); }
-        catch (Exception e) { js().executeScript("arguments[0].dispatchEvent(new MouseEvent('click',{bubbles:true}))", gavel); }
+        // Kartochkadagi 🔨 (Ariza yuborish, F4) — sahifa qayta chizilishi mumkin, shuning uchun qayta urinamiz
+        Object clicked = waitFor(() -> {
+            WebElement name = visible(driver, By.xpath("//*[contains(text(),'" + PRODUCT + "')]"));
+            if (name == null) return null;
+            WebElement card = name;
+            for (int up = 0; up < 15; up++) {
+                card = card.findElement(By.xpath("./.."));
+                if (card.getText().contains(" lot") && card.findElements(By.cssSelector("svg")).size() >= 3) break;
+            }
+            WebElement gavel = card.findElements(By.cssSelector("svg")).get(2);
+            try { jsClick(driver, gavel.findElement(By.xpath("./ancestor-or-self::*[self::button or @role='button' or contains(@class,'cursor-pointer')][1]"))); }
+            catch (org.openqa.selenium.NoSuchElementException e) { js().executeScript("arguments[0].dispatchEvent(new MouseEvent('click',{bubbles:true}))", gavel); }
+            return Boolean.TRUE;
+        }, 30);
+        Assert.assertNotNull(clicked, "Savdoda '" + PRODUCT + "' kartochkasi chiqmadi");
         WebElement buyBtn = waitFor(() -> lastVisible(driver, By.xpath("//button[normalize-space(.)='Sotib olish']")), 15);
         Assert.assertNotNull(buyBtn, "'Ariza yuborish' paneli ochilmadi");
         WebElement panel = buyBtn.findElement(By.xpath("./ancestor::*[.//input[@placeholder='Miqdor']][1]"));
@@ -458,8 +470,8 @@ public class AuctionFlowTest extends BaseTest {
         for (int t = 0; t < 3 && !opened; t++) {
             jsClick(driver, dots);
             sleep(1500);
-            WebElement edit = lastVisible(driver, By.xpath("//*[contains(text(),'ahrirlash')]"));
-            if (edit != null) jsClick(driver, edit);
+            WebElement edit = lastVisible(driver, By.xpath("//*[contains(text(),'zgartirish') or contains(text(),'ahrirlash')]"));
+            if (edit != null) { try { edit.click(); } catch (Exception e) { jsClick(driver, edit); } }
             opened = waitFor(() -> driver.findElements(By.id("startTime")).isEmpty() ? null : Boolean.TRUE, 6) != null;
         }
         Assert.assertTrue(opened, "Sessiya tahrirlash oynasi ochilmadi: " + section);

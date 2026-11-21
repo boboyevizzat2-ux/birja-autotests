@@ -108,8 +108,13 @@ public final class Ui {
         if (!found) throw new RuntimeException("E-IMZO ro'yxatida kalit topilmadi: " + jshshir);
         sleep(800);
         jsClick(d, d.findElement(By.xpath("//button[@type='submit' and contains(normalize-space(.),'Tizimga kirish')]")));
-        Eimzo.typePassword();
-        if (waitFor(() -> d.getCurrentUrl().contains("/auth/") ? null : Boolean.TRUE, 60) == null)
+        // E-IMZO parol oynasi kechikib chiqishi mumkin: sahifa ochilguncha kuzatib turamiz
+        long end = System.currentTimeMillis() + 90_000;
+        while (System.currentTimeMillis() < end && d.getCurrentUrl().contains("/auth/")) {
+            if (!Eimzo.windowTitle().isEmpty()) Eimzo.typePassword(2);
+            sleep(700);
+        }
+        if (d.getCurrentUrl().contains("/auth/"))
             throw new RuntimeException("ERI kalit bilan kirib bo'lmadi: " + jshshir);
         sleep(3000);
         System.out.println("Kirildi (" + jshshir + "): " + d.getCurrentUrl());

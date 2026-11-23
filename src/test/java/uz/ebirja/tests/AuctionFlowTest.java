@@ -70,6 +70,9 @@ public abstract class AuctionFlowTest extends BaseTest {
     String dealNo;              // birinchi bitim raqami (B2600....)
     List<String> dealNos = new ArrayList<>(); // shu savdodagi barcha bitimlar
     List<String> negativXatolar = new ArrayList<>(); // salbiy holatlarda sayt qabul qilib yuborganlari
+    Map<String, Integer> bitimLotlari = new LinkedHashMap<>();
+    /** Shu run'da auksionda hosil bo'lgan bitimlar (keyingi "Bitim holatlari" testi shulardan foydalanadi). */
+    public static final List<String> OXIRGI_BITIMLAR = new ArrayList<>();
 
     JavascriptExecutor js() { return (JavascriptExecutor) driver; }
 
@@ -100,9 +103,8 @@ public abstract class AuctionFlowTest extends BaseTest {
     // ------------------------------------------------------------------ 1
     @Test(priority = 1, description = "Treyder 1 auksion kontraktini yaratadi va E-IMZO bilan yuboradi")
     public void step1_kontraktYaratish() {
-        openBrowser();
         String base = Config.traderUrl();
-        loginByKey(driver, base, Config.get("trader1.login"), true);
+        kim("trader1");
         KontraktForma forma = new KontraktForma(driver, PRODUCT).ochish(base).togriToldirish(true);
         forma.yuborishniBosish();
         Eimzo.typePassword();
@@ -115,9 +117,8 @@ public abstract class AuctionFlowTest extends BaseTest {
     @Test(priority = 2, dependsOnMethods = "step1_kontraktYaratish",
           description = "Moderator kontraktni LISTING_MAIN -> LISTING -> LISTING_MEMBER rollarida tasdiqlaydi")
     public void step2_moderatorTasdiqlashi() {
-        openBrowser();
         String base = Config.adminUrl();
-        loginByKey(driver, base, Config.get("admin1.login"), false);
+        kim("admin1");
         try {
             for (String role : new String[]{"MODERATOR_LISTING_MAIN", "MODERATOR_LISTING", "MODERATOR_LISTING_MEMBER"}) {
                 switchRole(role);
@@ -150,9 +151,8 @@ public abstract class AuctionFlowTest extends BaseTest {
     @Test(priority = 3, dependsOnMethods = "step2_moderatorTasdiqlashi",
           description = "Admin savdo vaqtlarini qo'yadi (oldingi sessiya tugagach)")
     public void step3_savdoVaqtiniQoyish() {
-        openBrowser();
         String base = Config.adminUrl();
-        loginByKey(driver, base, Config.get("admin2.login"), false);
+        kim("admin2");
         String session = LocalTime.now().isAfter(LocalTime.of(14, 0)) ? "Kechki sessiya" : "Ertalabki sessiya";
         driver.get(base + "/uz/moderationv2/sales-schedule/auction-sales-2/trade-session");
         waitFor(() -> visible(driver, By.cssSelector("main tbody tr")), 30);
@@ -165,7 +165,7 @@ public abstract class AuctionFlowTest extends BaseTest {
             driver.navigate().refresh();
             sleep(4000);
         }
-        LocalDateTime base0 = LocalDateTime.now().withSecond(0).withNano(0).plusMinutes(2);
+        LocalDateTime base0 = LocalDateTime.now().withSecond(0).withNano(0).plusMinutes(1);
         elonStart = base0;
         savdoStart = base0.plusMinutes(MIN);
         savdoEnd = savdoStart.plusMinutes(MIN);
@@ -180,9 +180,8 @@ public abstract class AuctionFlowTest extends BaseTest {
     @Test(priority = 4, dependsOnMethods = "step3_savdoVaqtiniQoyish",
           description = "Treyder 1 e'lon vaqtida mahsulotni savdoga chiqaradi")
     public void step4_savdogaChiqarish() {
-        openBrowser();
         String base = Config.traderUrl();
-        loginByKey(driver, base, Config.get("trader1.login"), true);
+        kim("trader1");
         waitUntil(elonStart.plusSeconds(5), "e'lon berish vaqti");
         // --- SALBIY: minus va 0 lot (imzo to'sib qo'yilgan, hech narsa yuborilmaydi)
         WebElement lots = lotOynasi(base);
@@ -245,32 +244,37 @@ public abstract class AuctionFlowTest extends BaseTest {
     @Test(priority = 5, dependsOnMethods = "step4_savdogaChiqarish",
           description = "Treyder 2 savdo vaqtida mahsulotga taklif beradi")
     public void step5_taklifBerish() {
-        openBrowser();
         String base = Config.traderUrl();
-        loginByKey(driver, base, Config.get("trader2.login"), true);
-        // --- IJOBIY: BIDS ta tabda taklif oynalari OLDINDAN tayyorlanadi, keyin PAUZA oralig'i bilan ketma-ket yuboriladi
-        List<String> tablar = new ArrayList<>();
-        List<WebElement> panellar = new ArrayList<>();
+        kim("trader2");
+        // --- IJOBIY: bitta sahifada BIDS ta taklif OYNASI oldindan ochiladi (🔨 har bosilganda yangi oyna),
+        // har birida mijoz va miqdor kiritiladi; savdo boshlanishi bilan oynalar ketma-ket yuboriladi, PAUZA oralig'i bilan.
+        savdoSahifasi(base);
+        List<WebElement> oynalar = new ArrayList<>();
+        long tayyorlashBoshi = System.currentTimeMillis();
         for (int i = 0; i < BIDS; i++) {
-            if (i > 0) driver.switchTo().newWindow(WindowType.TAB);
-            tablar.add(driver.getWindowHandle());
-            savdoSahifasi(base);
-            panellar.add(waitFor(() -> { try { return oynaTayyorla(BID_LOTS); } catch (Throwable e) { System.out.println("5) oyna hali tayyor emas: " + e.getMessage()); savdoSahifasi(base); return null; } }, 150));
-            Assert.assertNotNull(panellar.get(i), (i + 1) + "-tabda taklif oynasi tayyorlanmadi");
-            System.out.println("5) " + (i + 1) + "-oyna tayyor");
+            WebElement p = waitFor(() -> { try { return oynaTayyorla(BID_LOTS); } catch (Throwable e) { System.out.println("5) oyna hali ochilmadi: " + e.getMessage()); sleep(1000); return null; } }, 60);
+            Assert.assertNotNull(p, (i + 1) + "-taklif oynasi ochilmadi");
+            oynalar.add(p);
         }
-        waitUntil(savdoStart.plusSeconds(2), "savdo vaqti");
+        System.out.println("5) " + BIDS + " ta oyna " + (System.currentTimeMillis() - tayyorlashBoshi) / 1000.0 + " s da tayyorlandi");
+        waitUntil(savdoStart.plusSeconds(1), "savdo vaqti");
+        long boshlandi = System.currentTimeMillis();
+        WebElement panel = null;
         for (int i = 0; i < BIDS; i++) {
-            driver.switchTo().window(tablar.get(i));
+            panel = oynalar.get(i);
             long t0 = System.currentTimeMillis();
-            yuborish(panellar.get(i), i + 1, BID_LOTS);
+            yuborish(panel, i + 1, BID_LOTS);
             System.out.println("5) " + (i + 1) + "-taklif " + (System.currentTimeMillis() - t0) / 1000.0 + " s");
-            sleep(PAUZA_MS);
+            if (i < BIDS - 1) sleep(PAUZA_MS);
         }
+        System.out.println("5) " + BIDS + " ta taklif " + (System.currentTimeMillis() - boshlandi) / 1000.0 + " s da berildi");
+        // --- SALBIY: savdoning qolgan vaqtida (ijobiy takliflardan keyin)
+        salbiyTaklif(panel, "0");
+        qismanTaklif(panel, String.valueOf(Integer.parseInt(LOTS) + 1));
+        ozMahsulotigaTaklif(base);
         // --- SALBIY: savdodagidan ko'p lotga taklif. O'CHIRILGAN (auction.negativ101=true bilan yoqiladi):
         // 23.11 da imzo to'sig'i bu sahifada ishlamadi va 101 lotli taklif haqiqatan yuborilib, 100 lotni sotib oldi (B26000255).
         if (!Boolean.parseBoolean(Config.getOr("auction.negativ101", "false"))) return;
-        driver.switchTo().window(tablar.get(0));
         savdoSahifasi(base);
         eimzoTosish(driver);
         String kop = String.valueOf(Integer.parseInt(LOTS) + 1);
@@ -280,12 +284,134 @@ public abstract class AuctionFlowTest extends BaseTest {
         if (eimzoUrinishlari(driver) > 0) negativXatolar.add("Taklif: savdodagi " + LOTS + " lotdan ko'p (" + kop + ") lotga taklif formasi o'tdi va imzo so'radi (imzo to'sildi)");
     }
 
+    /** Taklif uchun qaysi mijoz tanlanadi (sotuvchi o'z mahsulotiga urinishida - birinchisi). */
+    String joriyMijoz = XARIDOR_MIJOZ;
+
+    boolean vaqtYetadimi(String nima) {
+        if (LocalDateTime.now().isBefore(savdoEnd.minusSeconds(5))) return true;
+        System.out.println("5-negativ) " + nima + ": savdo vaqti tugadi, tekshirilmadi");
+        return false;
+    }
+
+    /** Xaridor (trader2): noto'g'ri miqdor bilan taklif. Imzo to'siladi, oyna chiqsa parolsiz yopiladi. */
+    void salbiyTaklif(WebElement panel, String miqdor) {
+        String nima = miqdor + " lotga taklif";
+        if (!vaqtYetadimi(nima)) return;
+        try {
+            eimzoTosish(driver);
+            boolean ochiq;
+            try { ochiq = panel != null && panel.isDisplayed(); } catch (Exception e) { ochiq = false; }
+            if (!ochiq) panel = oynaTayyorla(miqdor);
+            WebElement m = panel.findElement(By.cssSelector("input[placeholder='Miqdor']"));
+            js().executeScript("arguments[0].focus()", m);
+            m.sendKeys(Keys.CONTROL + "a");
+            m.sendKeys(miqdor);
+            String v = m.getAttribute("value");
+            jsClick(driver, panel.findElement(By.xpath(".//button[normalize-space(.)='Sotib olish']")));
+            boolean oyna = Eimzo.closeIfShown(3);
+            long urinish = eimzoUrinishlari(driver);
+            List<String> t = toasts(driver);
+            System.out.println("5-negativ) " + nima + " (maydonda '" + v + "') -> xabarlar: " + t + ", imzo so'rovi: " + (urinish + (oyna ? 1 : 0)));
+            if (oyna || urinish > 0) negativXatolar.add("Taklif: " + nima + " formasi o'tdi va imzo so'radi (imzo qo'yilmadi)");
+        } catch (Exception e) {
+            System.out.println("5-negativ) " + nima + ": tekshirib bo'lmadi: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 101 lotga taklif (savdoda 100 lot): sayt QABUL QILADI, lekin xaridor bor lotdan ko'p ololmaydi -> qisman yutadi
+     * (savatchada sariq). Haqiqiy imzo bilan yuboriladi. Undan chiqqan katta bitim stsenariylarga berilmaydi.
+     */
+    void qismanTaklif(WebElement panel, String miqdor) {
+        String nima = miqdor + " lotga taklif (qisman yutishi kerak)";
+        if (!vaqtYetadimi(nima)) return;
+        try {
+            boolean ochiq;
+            try { ochiq = panel != null && panel.isDisplayed(); } catch (Exception e) { ochiq = false; }
+            if (!ochiq) panel = oynaTayyorla(miqdor);
+            WebElement m = panel.findElement(By.cssSelector("input[placeholder='Miqdor']"));
+            js().executeScript("arguments[0].focus()", m);
+            m.sendKeys(Keys.CONTROL + "a");
+            m.sendKeys(miqdor);
+            jsClick(driver, panel.findElement(By.xpath(".//button[normalize-space(.)='Sotib olish']")));
+            boolean imzo = Eimzo.typePassword(6);
+            sleep(800);
+            System.out.println("5) " + nima + ": imzo " + (imzo ? "qo'yildi" : "so'ralmadi") + ", xabarlar: " + toasts(driver));
+            if (!imzo) negativXatolar.add("Taklif: " + nima + " - sayt taklifni qabul qilmadi (imzo so'ralmadi)");
+            qismanTaklifBerildi = imzo;
+        } catch (Exception e) {
+            System.out.println("5) " + nima + ": berib bo'lmadi: " + e.getMessage());
+        }
+    }
+
+    boolean qismanTaklifBerildi = false;
+
+    /** Savatcha: takliflar rangi (yashil - yutgan, qizil - yutqizgan, sariq - qisman). Natijani logga yozadi va sanaydi. */
+    Map<String, Integer> savatcha(String base) {
+        Map<String, Integer> r = new LinkedHashMap<>();
+        try {
+            kim("trader2");
+            savdoSahifasi(base);
+            // o'ng chetdagi suzuvchi tugmalar: oxirgisi - savatcha
+            List<?> btns = (List<?>) js().executeScript(
+                    "return [...document.querySelectorAll('button, [role=button], div')].filter(e => { const r = e.getBoundingClientRect();" +
+                    " return r.width > 20 && r.width < 70 && r.height > 20 && r.height < 70 && r.right > innerWidth - 90 && r.top > 150 && e.querySelector('svg'); });");
+            System.out.println("6-savatcha) o'ng chetdagi tugmalar: " + btns.size());
+            if (btns.isEmpty()) return r;
+            jsClick(driver, (WebElement) btns.get(btns.size() - 1));
+            sleep(2500);
+            rasmOl("savatcha");
+            // "Mening takliflarim" jadvali: har bir qatorning rangi (fon) bo'yicha: yashil - yutgan, qizil - yutqizgan, sariq - qisman
+            List<?> rang = (List<?>) js().executeScript(
+                    "const out=[]; for (const tr of document.querySelectorAll('tbody tr')) {" +
+                    "  let el=tr, c=''; for (let i=0;i<3 && el;i++){ const s=getComputedStyle(el); c+=s.backgroundColor+' '+s.color+' '+el.className+' '; el=el.firstElementChild; }" +
+                    "  const m=c.match(/rgba?[(]([0-9]+), ([0-9]+), ([0-9]+)/); let t='nomalum';" +
+                    "  if (m) { const r=+m[1], g=+m[2], b=+m[3];" +
+                    "    if (g>r+20 && g>b) t='yashil'; else if (r>200 && g>170 && b<160) t='sariq'; else if (r>g+40 && r>b+40) t='qizil'; }" +
+                    "  if (/green|success/i.test(c)) t='yashil'; if (/yellow|warning|amber/i.test(c)) t='sariq'; if (/red|danger|error/i.test(c)) t='qizil';" +
+                    "  out.push(t+' | '+tr.innerText.split(String.fromCharCode(10)).join(' ').slice(0,140)); } return out;");
+            for (Object o : rang) {
+                String s = String.valueOf(o);
+                r.merge(s.substring(0, s.indexOf(" | ")), 1, Integer::sum);
+            }
+            System.out.println("6-savatcha) ranglar: " + r);
+            rang.stream().limit(15).forEach(o -> System.out.println("   " + o));
+        } catch (Exception e) {
+            System.out.println("6-savatcha) o'qib bo'lmadi: " + e.getMessage());
+        }
+        return r;
+    }
+
+    /** Sotuvchi (trader1) o'z mahsulotiga taklif beradi: sayt rad etishi kerak (server tekshiradi, haqiqiy imzo). */
+    void ozMahsulotigaTaklif(String base) {
+        String nima = "sotuvchi o'z mahsulotiga taklif";
+        if (!vaqtYetadimi(nima)) return;
+        try {
+            kim("trader1");
+            joriyMijoz = "";
+            savdoSahifasi(base);
+            if (!vaqtYetadimi(nima)) return;
+            WebElement p = oynaTayyorla(BID_LOTS);
+            jsClick(driver, p.findElement(By.xpath(".//button[normalize-space(.)='Sotib olish']")));
+            Eimzo.typePassword(6);
+            sleep(800);
+            ozTaklifXabarlari = toasts(driver);
+            System.out.println("5-negativ) " + nima + " -> xabarlar: " + ozTaklifXabarlari + " (bitim chiqsa 6-qadamda aniqlanadi)");
+        } catch (Throwable e) {
+            System.out.println("5-negativ) " + nima + ": oyna ochilmadi yoki rad etildi: " + e.getMessage());
+        } finally {
+            joriyMijoz = XARIDOR_MIJOZ;
+        }
+    }
+
+    List<String> ozTaklifXabarlari = new ArrayList<>();
+
     /** Treyder 2: "Sotib olish" tabini ochib, mahsulotni qidiradi. */
     void savdoSahifasi(String base) {
         driver.get(base + "/uz/trader/sales/auction-sales?tradeTab=SELL");
-        sleep(4000);
+        sleep(1500);
         jsClick(driver, waitFor(() -> visible(driver, By.xpath("//*[normalize-space(text())='Sotib olish']")), 20));
-        sleep(3000); // tab almashgach sahifa qayta chiziladi
+        sleep(1500); // tab almashgach sahifa qayta chiziladi
         Object typed = waitFor(() -> {
             WebElement s = visible(driver, By.cssSelector("main input[placeholder='Qidirish']"));
             if (s == null) return null;
@@ -303,10 +429,10 @@ public abstract class AuctionFlowTest extends BaseTest {
             try {
                 if (!op.isDisplayed()) continue;
                 if (first == null) first = op;
-                if (!XARIDOR_MIJOZ.isEmpty() && op.getText().contains(XARIDOR_MIJOZ)) return op;
+                if (!joriyMijoz.isEmpty() && op.getText().contains(joriyMijoz)) return op;
             } catch (Exception ignore) {}
         }
-        return XARIDOR_MIJOZ.isEmpty() ? first : null;
+        return joriyMijoz.isEmpty() ? first : null;
     }
 
     /** Treyder 2: ochiq sahifadagi kartochkadan oynani ochib, BID_LOTS lotga bitta taklif beradi (sahifa qayta ochilmaydi). */
@@ -316,6 +442,7 @@ public abstract class AuctionFlowTest extends BaseTest {
 
     /** Kartochkadan taklif oynasini ochadi, mijozni tanlaydi, miqdorni yozadi (YUBORMAYDI). Panelni qaytaradi. */
     WebElement oynaTayyorla(String lotlar) {
+        List<WebElement> oldingi = ochiqOynalar();
         // Kartochkadagi 🔨 (Ariza yuborish, F4) — sahifa qayta chizilishi mumkin, shuning uchun qayta urinamiz
         Object clicked = waitFor(() -> {
             WebElement name = visible(driver, By.xpath("//*[contains(text(),'" + PRODUCT + "')]"));
@@ -331,17 +458,16 @@ public abstract class AuctionFlowTest extends BaseTest {
             return Boolean.TRUE;
         }, 30);
         Assert.assertNotNull(clicked, "Savdoda '" + PRODUCT + "' kartochkasi chiqmadi");
-        WebElement buyBtn = waitFor(() -> lastVisible(driver, By.xpath("//button[normalize-space(.)='Sotib olish']")), 15);
-        Assert.assertNotNull(buyBtn, "'Ariza yuborish' paneli ochilmadi");
-        WebElement panel = buyBtn.findElement(By.xpath("./ancestor::*[.//input[@placeholder='Miqdor']][1]"));
+        // 🔨 har bosilganda yangi oyna ochiladi: yangisi - oldin bo'lmagani
+        WebElement panel = waitFor(() -> { for (WebElement p : ochiqOynalar()) if (!oldingi.contains(p)) return p; return null; }, 15);
+        Assert.assertNotNull(panel, "'Ariza yuborish' oynasi ochilmadi");
         // Mijoz
         for (WebElement in : panel.findElements(By.cssSelector("input[id^='react-select']"))) {
             Object txt = js().executeScript("let c=arguments[0].closest('[class*=\"-container\"]'); return c? c.innerText : '';", in);
             if (!String.valueOf(txt).contains("Mijoz")) continue;
-            in.sendKeys(Keys.ARROW_DOWN);
-            sleep(800);
-            WebElement tanlov = mijozVarianti();
-            if (tanlov == null && !XARIDOR_MIJOZ.isEmpty()) { in.sendKeys(XARIDOR_MIJOZ); sleep(1500); tanlov = mijozVarianti(); }
+            // mijoz STIR'i yoziladi va chiqqan variant tanlanadi (ro'yxat aylantirilmaydi)
+            if (joriyMijoz.isEmpty()) in.sendKeys(Keys.ARROW_DOWN); else in.sendKeys(joriyMijoz);
+            WebElement tanlov = waitFor(this::mijozVarianti, 6);
             Assert.assertNotNull(tanlov, "Mijozlar ro'yxatida '" + XARIDOR_MIJOZ + "' yo'q");
             System.out.println("5) Mijoz: " + clean(tanlov.getText()));
             jsClick(driver, tanlov);
@@ -354,12 +480,20 @@ public abstract class AuctionFlowTest extends BaseTest {
         return panel;
     }
 
+    /** Sahifada ochiq turgan taklif oynalari ("Sotib olish" tugmasi va "Miqdor" maydoni borlari). */
+    List<WebElement> ochiqOynalar() {
+        List<WebElement> r = new ArrayList<>();
+        for (WebElement b : driver.findElements(By.xpath("//button[normalize-space(.)='Sotib olish']")))
+            try { if (b.isDisplayed()) { WebElement p = b.findElement(By.xpath("./ancestor::*[.//input[@placeholder='Miqdor']][1]")); if (!r.contains(p)) r.add(p); } } catch (Exception ignore) {}
+        return r;
+    }
+
     /** Tayyor oynada "Sotib olish" ni bosib, imzolaydi (b=0: salbiy urinish, imzo to'silgan). */
     void yuborish(WebElement panel, int b, String lotlar) {
         jsClick(driver, panel.findElement(By.xpath(".//button[normalize-space(.)='Sotib olish']")));
         if (b == 0) { sleep(3000); return; } // salbiy urinish: imzo to'silgan, parol yozilmaydi
         Eimzo.typePassword(6);
-        sleep(1000);
+        sleep(500);
         List<String> t = toasts(driver);
         Assert.assertFalse(t.stream().anyMatch(x -> x.contains("Majburiy")), "Taklif yuborilmadi: " + t);
         System.out.println("5) " + b + "-taklif: " + lotlar + " lotga taklif berildi. Xabarlar: " + t);
@@ -370,9 +504,11 @@ public abstract class AuctionFlowTest extends BaseTest {
           description = "Savdo tugagach bitim hosil bo'ladi (Treyder 1 -> Mening shartnomalarim -> Sotish)")
     public void step6_bitimHosilBolishi() {
         waitUntil(savdoEnd.plusSeconds(30), "savdo tugashi va bitim yaratilishi");
-        openBrowser();
+        Map<String, Integer> rang = savatcha(Config.traderUrl());
+        if (qismanTaklifBerildi && !rang.isEmpty() && !rang.containsKey("sariq"))
+            System.out.println("6-savatcha) DIQQAT: 101 lotli taklif sariq (qisman) ko'rinmadi: " + rang);
         String base = Config.traderUrl();
-        loginByKey(driver, base, Config.get("trader1.login"), true);
+        kim("trader1");
         String today = LocalDate.now().format(DateTimeFormatter.ofPattern("dd/MM/yyyy"));
         String time = savdoEnd.format(HM);
         for (int attempt = 0; attempt < 6 && dealNos.size() < BIDS; attempt++) {
@@ -381,13 +517,25 @@ public abstract class AuctionFlowTest extends BaseTest {
                 String tx = r.getText();
                 if (tx.contains(today) && tx.contains(PRODUCT) && tx.contains("Imzolash kutilmoqda")) {
                     java.util.regex.Matcher m = java.util.regex.Pattern.compile("B\\d{8}").matcher(tx);
-                    if (m.find() && !dealNos.contains(m.group())) dealNos.add(m.group());
+                    // sotuvchi o'zidan sotib olgan bitim (STIR ikki marta) = salbiy holat xatosi
+                    if (m.find() && tx.split("311927414", -1).length > 2) {
+                        String x = "Sotuvchi o'z mahsulotiga taklif bera oldi va bitim tuzildi: " + m.group();
+                        if (!negativXatolar.contains(x)) negativXatolar.add(x);
+                        continue;
+                    }
+                    if (m.start() >= 0 && !dealNos.contains(m.group())) dealNos.add(m.group());
+                    java.util.regex.Matcher lm = java.util.regex.Pattern.compile("UZS [|] ([0-9]+) [|]").matcher(clean(tx));
+                    if (lm.find()) bitimLotlari.put(m.group(), Integer.parseInt(lm.group(1)));
                 }
             }
-            if (dealNos.size() < BIDS) sleep(10000);
+            if (dealNos.size() < BIDS) sleep(5000);
         }
         Assert.assertFalse(dealNos.isEmpty(), "Bugungi '" + PRODUCT + "' bitimi topilmadi (savdo " + time + " da tugagan)");
         dealNo = dealNos.get(0);
+        // stsenariylarga faqat BID_LOTS (1) lotli bitimlar beriladi; 101 lotli (qisman) taklifdan chiqqan katta bitim berilmaydi
+        OXIRGI_BITIMLAR.clear();
+        for (String no : dealNos) if (String.valueOf(bitimLotlari.getOrDefault(no, 1)).equals(BID_LOTS)) OXIRGI_BITIMLAR.add(no);
+        System.out.println("6) Lotlar: " + bitimLotlari + " | stsenariylar uchun: " + OXIRGI_BITIMLAR);
         System.out.println("6) Bitimlar hosil bo'ldi (" + dealNos.size() + " ta, kutilgan " + BIDS + "): " + dealNos);
     }
 
@@ -395,7 +543,6 @@ public abstract class AuctionFlowTest extends BaseTest {
     @Test(priority = 7, dependsOnMethods = "step6_bitimHosilBolishi",
           description = "Ikkala treyder bitimni 'Ommaviy imzolash' orqali imzolaydi")
     public void step7_treyderlarImzolashi() {
-        openBrowser();
         String base = Config.traderUrl();
         signDeal(base, "trader1", "Sotish");
         signDeal(base, "trader2", "Sotib olish"); // mijoz nomidan bo'lsa "Mijozimning shartnomalari"
@@ -405,20 +552,22 @@ public abstract class AuctionFlowTest extends BaseTest {
     @Test(priority = 8, dependsOnMethods = "step7_treyderlarImzolashi",
           description = "Admin bitimni 'Tasdiqlanmagan' tabidan tasdiqlaydi")
     public void step8_adminTasdiqlashi() {
-        openBrowser();
         String base = Config.adminUrl();
-        loginByKey(driver, base, Config.get("admin2.login"), false);
+        kim("admin2");
         adminOmmaviyTasdiqla(base, dealNos);
     }
 
     /** Admin: "Tasdiqlanmagan" tabida bitimlarni belgilab, "Ommaviy tasdiqlash" bilan bitta imzoda tasdiqlaydi. Tugma bo'lmasa bittalab. */
     void adminOmmaviyTasdiqla(String base, List<String> nos) {
         driver.get(base + "/uz/moderationv2/contracts");
-        sleep(6000);
         jsClick(driver, waitFor(() -> visible(driver, By.xpath("//main//button[starts-with(normalize-space(.),'Tasdiqlanmagan')]")), 20));
         Assert.assertNotNull(waitFor(() -> rowWith(nos.get(0)), 60), "Admin 'Tasdiqlanmagan' ro'yxatida " + nos.get(0) + " yo'q");
         sahifada100(driver);
-        WebElement ommaviy = visible(driver, By.xpath("//main//button[contains(normalize-space(.),'Ommaviy tasdiqlash')]"));
+        // avval sarlavhadagi "hammasini tanlash" (ommaviy tugma ko'pincha shundan keyin chiqadi)
+        WebElement hammasi = visible(driver, By.cssSelector("main thead input[type=checkbox]"));
+        if (hammasi != null) { realClick(driver, hammasi); sleep(500); }
+        WebElement ommaviy = visible(driver, By.xpath("//main//button[contains(normalize-space(.),'Ommaviy')]"));
+        if (ommaviy != null) System.out.println("8) Ommaviy tugma: '" + clean(ommaviy.getText()) + "'");
         if (ommaviy == null) {
             System.out.println("8) 'Ommaviy tasdiqlash' tugmasi yo'q — bittalab tasdiqlanadi");
             for (String no : nos) adminTasdiqla(base, no);
@@ -428,8 +577,9 @@ public abstract class AuctionFlowTest extends BaseTest {
             WebElement row = rowWith(no);
             Assert.assertNotNull(row, "Admin 'Tasdiqlanmagan' ro'yxatida " + no + " yo'q");
             WebElement cb = row.findElement(By.cssSelector("input[type=checkbox]"));
+            if (cb.isSelected()) continue; // "hammasini tanlash" allaqachon belgilagan
             realClick(driver, cb);
-            sleep(400);
+            sleep(300);
             if (!cb.isSelected()) jsClick(driver, cb);
         }
         jsClick(driver, ommaviy);
@@ -437,15 +587,17 @@ public abstract class AuctionFlowTest extends BaseTest {
         WebElement ok = waitFor(() -> lastVisible(driver, By.xpath("//*[@role='dialog' or contains(@class,'modal')]//button[normalize-space(.)='Tasdiqlash' or normalize-space(.)='Imzolash' or normalize-space(.)='Ha']")), 10);
         if (ok != null) jsClick(driver, ok);
         Eimzo.typePassword(10);
-        sleep(4000);
+        sleep(1500);
         System.out.println("8) Ommaviy tasdiqlash xabarlari: " + toasts(driver));
-        driver.navigate().refresh();
-        sleep(5000);
-        jsClick(driver, waitFor(() -> visible(driver, By.xpath("//main//button[starts-with(normalize-space(.),'Tasdiqlanmagan')]")), 20));
-        sleep(5000);
-        sahifada100(driver);
-        List<String> qoldi = new ArrayList<>();
-        for (String no : nos) if (rowWith(no) != null) qoldi.add(no);
+        // tekshiruv: bitimlar "Tasdiqlanmagan" dan chiqib ketishini kutamiz (ko'pi bilan ~30 s)
+        List<String> qoldi = new ArrayList<>(nos);
+        for (int urinish = 0; urinish < 6 && !qoldi.isEmpty(); urinish++) {
+            driver.navigate().refresh();
+            jsClick(driver, waitFor(() -> visible(driver, By.xpath("//main//button[starts-with(normalize-space(.),'Tasdiqlanmagan')]")), 20));
+            sleep(2500);
+            qoldi.clear();
+            for (String no : nos) if (rowWith(no) != null) qoldi.add(no);
+        }
         Assert.assertTrue(qoldi.isEmpty(), "Ommaviy tasdiqlashdan keyin hali 'Tasdiqlanmagan'da: " + qoldi);
         System.out.println("8) Admin ommaviy tasdiqladi: " + nos);
     }
@@ -453,7 +605,6 @@ public abstract class AuctionFlowTest extends BaseTest {
     /** Admin: bitta bitimni 'Tasdiqlanmagan' tabidan tasdiqlaydi. */
     void adminTasdiqla(String base, String dealNo) {
         driver.get(base + "/uz/moderationv2/contracts");
-        sleep(6000);
         jsClick(driver, waitFor(() -> visible(driver, By.xpath("//main//button[starts-with(normalize-space(.),'Tasdiqlanmagan')]")), 20));
         WebElement row = waitFor(() -> rowWith(dealNo), 60);
         Assert.assertNotNull(row, "Admin 'Tasdiqlanmagan' ro'yxatida " + dealNo + " yo'q");
@@ -485,23 +636,57 @@ public abstract class AuctionFlowTest extends BaseTest {
         // xaridor mijoz (masalan TESTIVEST) nomidan sotib olgan bo'lsa, bitim treyderda "Mijozimning shartnomalari" da turadi
         boolean mijoz = tab.equals("Sotib olish") && !XARIDOR_MIJOZ.isEmpty();
         driver.get(base + (mijoz ? "/uz/trader/contracts/client-contracts" : "/uz/trader/contracts/brokers-contracts"));
-        sleep(6000);
+        sleep(500);
         jsClick(driver, waitFor(() -> visible(driver, By.xpath("//main//*[normalize-space(text())='" + tab + "']")), 20));
-        sleep(4000);
+        sleep(2000);
         sahifada100(driver);
     }
 
+    /** "Bitim holati" filtridan holatni tanlaydi; jadvalda faqat shu holatdagilar qolguncha kutadi. */
+    boolean holatFiltri(String holat) {
+        for (WebElement in : driver.findElements(By.cssSelector("main input[id^='react-select']"))) {
+            try {
+                Object txt = js().executeScript("let c=arguments[0].closest('[class*=\"-container\"]'); return c? c.innerText : '';", in);
+                if (!String.valueOf(txt).contains("Bitim holati")) continue;
+                in.sendKeys(Keys.ARROW_DOWN);
+                WebElement op = waitFor(() -> lastVisible(driver, By.xpath("//*[contains(@id,'-option-')][normalize-space(.)='" + holat + "']")), 5);
+                if (op == null) { in.sendKeys(Keys.ESCAPE); return false; }
+                jsClick(driver, op);
+                waitFor(() -> {
+                    List<WebElement> rows = driver.findElements(By.cssSelector("main tbody tr"));
+                    if (rows.isEmpty()) return null;
+                    for (WebElement r : rows) if (!norm(r.getText()).contains(norm(holat).replace("Imzolanish", "Imzolash"))) return null;
+                    return Boolean.TRUE;
+                }, 10);
+                return true;
+            } catch (Exception ignore) {}
+        }
+        return false;
+    }
+
+    static String norm(String s) { return s == null ? "" : s.replaceAll("[‘’`ʼ]", "'"); }
+
     void signDeal(String base, String who, String tab) {
-        loginByKey(driver, base, Config.get(who + ".login"), true);
+        kim(who);
         openContracts(base, tab);
+        // filtr: "Bitim holati" = "Imzolanish kutilmoqda" -> sarlavhadagi "hammasini tanlash" -> "Ommaviy imzolash"
+        boolean filtr = holatFiltri("Imzolanish kutilmoqda");
         Assert.assertNotNull(waitFor(() -> rowWith(dealNo), 20), who + ": " + dealNo + " '" + tab + "' tabida yo'q");
-        for (String no : dealNos) {
-            WebElement row = rowWith(no);
-            Assert.assertNotNull(row, who + ": " + no + " '" + tab + "' tabida yo'q");
-            WebElement cb = row.findElement(By.cssSelector("input[type=checkbox]"));
-            realClick(driver, cb);
-            sleep(600);
-            if (!cb.isSelected()) jsClick(driver, cb);
+        WebElement hammasi = filtr ? visible(driver, By.cssSelector("main thead input[type=checkbox]")) : null;
+        if (hammasi != null) {
+            realClick(driver, hammasi);
+            sleep(400);
+            if (!hammasi.isSelected()) jsClick(driver, hammasi);
+        } else {
+            // zaxira: bittalab belgilash
+            for (String no : dealNos) {
+                WebElement row = rowWith(no);
+                Assert.assertNotNull(row, who + ": " + no + " '" + tab + "' tabida yo'q");
+                WebElement cb = row.findElement(By.cssSelector("input[type=checkbox]"));
+                realClick(driver, cb);
+                sleep(300);
+                if (!cb.isSelected()) jsClick(driver, cb);
+            }
         }
         jsClick(driver, driver.findElement(By.xpath("//main//button[contains(normalize-space(.),'Ommaviy imzolash')]")));
         WebElement sign = waitFor(() -> lastVisible(driver, By.xpath("//*[@role='dialog' or contains(@class,'modal')]//button[normalize-space(.)='Imzolash']")), 15);
@@ -534,7 +719,7 @@ public abstract class AuctionFlowTest extends BaseTest {
         jsClick(driver, lastVisible(driver, By.xpath("//div[normalize-space(text())='" + role + "']")));
         sleep(700);
         jsClick(driver, lastVisible(driver, By.xpath("//button[normalize-space(.)='Saqlash']")));
-        sleep(5000);
+        sleep(2500);
         driver.get(Config.adminUrl() + "/uz/moderationv2/profile");
         waitFor(() -> role.equals(currentRole()) ? Boolean.TRUE : null, 20);
         Assert.assertEquals(currentRole(), role, "Rol almashmadi");

@@ -178,6 +178,41 @@ public class ProbeDeals extends BaseTest {
         s.forEach(this::p);
     }
 
+    /** YBHR yuborish oynasini to'langan bitimda o'rganish (imzo to'silgan). */
+    @Test
+    public void probe6() throws Exception {
+        new File(OUT).mkdirs();
+        log = new PrintWriter(new OutputStreamWriter(new FileOutputStream(OUT + "/log6.txt"), StandardCharsets.UTF_8));
+        openBrowser();
+        try {
+            String t = Config.traderUrl();
+            String no = System.getProperty("bitim", "B26000256");
+            loginByKey(driver, t, Config.get("trader1.login"), true);
+            search = no;
+            openWithSearch(t + "/uz/trader/contracts/brokers-contracts", "Sotish");
+            for (WebElement r : driver.findElements(By.cssSelector("main tbody tr"))) p("T1 qator: " + clean(r.getText()));
+            List<WebElement> rows = driver.findElements(By.cssSelector("main tbody tr"));
+            if (!rows.isEmpty()) { List<WebElement> tds = rows.get(0).findElements(By.cssSelector("td")); jsClick(driver, tds.get(tds.size()-1).findElement(By.cssSelector("button"))); sleep(1500); p("T1 menyu (to'langan): " + visibleTexts().stream().filter(x -> x.length() < 60).toList()); shot("T1_tolangan_menyu"); driver.findElement(By.tagName("body")).sendKeys(Keys.ESCAPE); }
+            search = null;
+            driver.get(t + "/uz/trader/hkkp/ybhr"); sleep(6000); tosish();
+            jsClick(driver, visible(driver, By.xpath("//main//button[contains(normalize-space(.),'YBHR yuborish')]"))); sleep(3000);
+            WebElement sh = visible(driver, By.cssSelector("input[placeholder='Shartnoma raqamini kiriting']"));
+            p("Shartnoma maydoni: id=" + sh.getAttribute("id") + " role=" + sh.getAttribute("role"));
+            sh.sendKeys(no); sleep(3000);
+            List<String> o = new ArrayList<>();
+            for (WebElement op : driver.findElements(By.cssSelector("[id*='-option-'], [role=option], li"))) if (op.isDisplayed() && !op.getText().isBlank()) o.add(clean(op.getText()));
+            p("Shartnoma variantlari: " + o);
+            shot("ybhr_shartnoma");
+            WebElement opt = lastVisible(driver, By.xpath("//*[contains(@id,'-option-') or @role='option'][contains(.,'" + no + "')]"));
+            if (opt != null) { jsClick(driver, opt); sleep(2500); }
+            p("Tanlangandan keyin oyna: " + dialogs());
+            WebElement fd = visible(driver, By.name("factureDate"));
+            if (fd != null) { jsClick(driver, fd); sleep(1500); shot("ybhr_sana"); p("Sana tanlagich: " + cut(String.valueOf(js().executeScript("let e=document.querySelector('.react-datepicker, [class*=calendar], [class*=picker]'); return e? e.outerHTML.slice(0,600) : 'yo'q';")), 600)); driver.findElement(By.tagName("body")).sendKeys(Keys.ESCAPE); }
+            p("Fayl inputlari: " + driver.findElements(By.cssSelector("[role=dialog] input[type=file], [class*=modal] input[type=file]")).size() + " accept=" + driver.findElements(By.cssSelector("input[type=file]")).stream().map(e -> e.getAttribute("accept")).toList());
+            shot("ybhr_oyna");
+        } finally { log.close(); closeBrowser(); }
+    }
+
     /** B26000255: sotuvchi va xaridor (mijoz shartnomalari) tomonidan. */
     @Test
     public void probe5() throws Exception {

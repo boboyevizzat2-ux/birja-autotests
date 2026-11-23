@@ -87,6 +87,28 @@ public final class Ui {
         ((JavascriptExecutor) d).executeScript("localStorage.clear(); sessionStorage.clear();");
     }
 
+    /** Sahifadagi jadval yuklanishini kutadi: qatorlar chiqsa yoki "mavjud emas/topilmadi" yozuvi chiqsa darhol qaytadi (ko'pi bilan 20 s). */
+    public static void jadvalKut(WebDriver d) {
+        sleep(700);
+        waitFor(() -> {
+            if (!d.findElements(By.cssSelector("main tbody tr td")).isEmpty()) return Boolean.TRUE;
+            String t = d.findElement(By.tagName("main")).getText();
+            return t.contains("mavjud emas") || t.contains("topilmadi") ? Boolean.TRUE : null;
+        }, 20);
+        sleep(300);
+    }
+
+    /** Qidiruv natijasini kutadi: jadvalda faqat matn bor qatorlar yoki bo'sh natija. */
+    public static void qidiruvKut(WebDriver d, String matn) {
+        sleep(500);
+        waitFor(() -> {
+            List<WebElement> rows = d.findElements(By.cssSelector("main tbody tr"));
+            if (rows.isEmpty()) return d.findElement(By.tagName("main")).getText().contains("mavjud emas") ? Boolean.TRUE : null;
+            for (WebElement r : rows) try { if (!r.getText().contains(matn)) return null; } catch (Exception e) { return null; }
+            return Boolean.TRUE;
+        }, 15);
+    }
+
     /** Jadval pastidagi "Ko'rsatish" (10/20/50/100) ro'yxatidan 100 ni tanlaydi (bo'lsa). */
     public static void sahifada100(WebDriver d) {
         for (WebElement in : d.findElements(By.cssSelector("main input[id^='react-select']"))) {

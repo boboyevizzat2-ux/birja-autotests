@@ -1,108 +1,95 @@
 # eBirja avtotestlari: ro'yxat va so'nggi natijalar
 
-Oxirgi yangilanish: 23.11.2026. Barcha testlar test saytida (`test-app.ebirja.uz`, `test-head.ebirja.uz`) E-IMZO kaliti bilan ishlaydi.
+Oxirgi yangilanish: 23.11.2026, 22:20. Barcha testlar test saytida (`test-app.ebirja.uz`, `test-head.ebirja.uz`) E-IMZO kaliti bilan ishlaydi.
 
 ## Qanday ishga tushiriladi
 
 IntelliJ'da yuqoridagi ro'yxatdan tugmani tanlab ▶ bosiladi. Test vaqtida klaviatura va sichqonchaga tegmang, chunki E-IMZO paroli avtomatik kiritiladi.
 
-| Tugma | Test klassi | Nima qiladi | Taxminiy vaqt |
-|---|---|---|---|
-| Auksion - Oddiy | `AuksionOddiyTest` | To'liq auksion, boshidan oxirigacha | 15 daqiqa |
-| Auksion - Spirt / Oltin / Kumush / Subsidiya | `Auksion<Tur>Test` | Shu savdo turidagi auksion (hozircha faqat mahsuloti farq qiladi) | 15 daqiqa |
-| Kontrakt - negativ | `KontraktNegativTest` | Kontrakt formasidagi salbiy holatlar | 8 daqiqa |
-| Bitim holatlari | `BitimHolatlariTest` | To'lov, bekor qilish (3 turi), muddatni uzaytirish | har biri 1,5–3 daqiqa |
+| Tugma | Nima qiladi |
+|---|---|
+| **To'liq jarayon** | Hammasi bitta run'da: kontrakt salbiy testlari → auksion (7 bitim) → 7 ta bitim holati |
+| Auksion - Oddiy | Faqat auksion |
+| Kontrakt - negativ | Faqat kontrakt formasidagi salbiy holatlar |
+| Bitim holatlari | Faqat 7 ta stsenariy (bitimlar `-Dbitim.<kalit>=B...` bilan beriladi) |
+| Auksion - Spirt / Oltin / Kumush / Subsidiya | Maxsus savdolar (keyingi bosqich, hali o'ziga xos qadamlari yo'q) |
 
-Bitta holatni alohida ishga tushirish: `mvn test -Dsurefire.suiteXmlFiles= -Dtest=BitimHolatlariTest#tolovQilish`
+Terminaldan: `mvn test -Dsuite=toliq-jarayon.xml`
 
-Sozlamalar `login.properties` faylida:
+Sozlamalar (`login.properties`): `auction.lots=100`, `auction.bids=7`, `auction.bidPauseMs=2000`, `auction.minutes=1` (e'lon 1 daq, savdo 1 daq), `auction.buyerClient=313141918` (TESTIVEST MCHJ).
 
-| Sozlama | Ma'nosi | Hozirgi qiymati |
+## Tezlik
+
+| Run | Vaqt | Izoh |
 |---|---|---|
-| `auction.lots` | Savdoga chiqariladigan lotlar | 100 |
-| `auction.bids` | Nechta alohida taklif beriladi | 7 |
-| `auction.bidPauseMs` | Takliflar orasidagi pauza | 2000 (2 soniya) |
-| `auction.minutes` | E'lon va savdo davomiyligi | 2 daqiqa |
-| `auction.buyerClient` | Xaridor qaysi mijoz nomidan oladi | 313141918 (TESTIVEST MCHJ) |
+| 23.11, 21:57 (to'liq jarayon) | **17 daq** | Eski usullar: har taklifga oyna alohida ochilgan, admin bittalab tasdiqlagan, E-IMZO sekin kuzatilgan |
 
-## 1. Auksion: to'liq jarayon (`AuksionOddiyTest`)
+Shu run'dan keyin quyidagi tezlashtirishlar qilindi. Ular **kompilyatsiya qilingan, lekin to'liq run'da hali sinalmagan** (24.11 da birinchi tekshiriladi):
+- E-IMZO oynasini kuzatuvchi doimiy jarayon (`eimzo-server.ps1`): bitta imzo ~6,7 s → ~2–3 s kutilmoqda;
+- 7 ta taklif oynasi savdodan **oldin** bitta sahifada ochib qo'yiladi, keyin 2 s oraliq bilan yuboriladi;
+- treyderlar «Bitim holati = Imzolanish kutilmoqda» filtri + «hammasini tanlash» bilan ommaviy imzolaydi;
+- admin «Tasdiqlanmagan» tabida «hammasini tanlash» + ommaviy tasdiqlaydi.
 
-Natija: **9/9 o'tdi** (23.11.2026, 21:10). Bitimlar: B26000256–B26000262.
+Maqsad: **10–13 daqiqa**.
 
-| # | Qadam | Holat |
-|---|---|---|
-| 1 | Treyder 1 kontrakt yaratadi (E-IMZO) | ✅ |
-| 2 | Moderator 3 rolda tasdiqlaydi | ✅ |
-| 3 | Admin savdo vaqtini qo'yadi (e'lon 2 daq, savdo 2 daq) | ✅ |
-| 4 | Treyder 1 100 lotni savdoga chiqaradi | ✅ |
-| 5 | Treyder 2 (TESTIVEST nomidan) 7 ta oynani oldindan tayyorlab, 2 soniya oraliq bilan 1 lotdan 7 ta taklif beradi | ✅ (har bir taklif ≈ 7,5 s) |
-| 6 | 7 ta bitim hosil bo'ladi | ✅ |
-| 7 | Ikkala treyder ommaviy imzolaydi (treyder 2: «Mijozimning shartnomalari») | ✅ |
-| 8 | Admin tasdiqlaydi («Ommaviy tasdiqlash», tugma bo'lmasa bittalab) | ✅ |
-| 9 | Salbiy holatlar yakuni | ✅ |
+## 1. Kontrakt yaratish: salbiy holatlar
 
-### Auksiondagi salbiy holatlar
-
-| Holat | Kutilgan | Natija |
-|---|---|---|
-| Savdoga **-5 lot** chiqarish | Minus kiritilmaydi | ✅ maydonda «5» qoladi |
-| Savdoga **0 lot** chiqarish | Rad etiladi | ✅ «Grafik lot yuborilishi kerak», imzo so'ralmaydi |
-| 100 lotli savdoga **101 lotga taklif** | Rad etilishi kerak | ⚠️ **O'chirilgan** (pastga qarang) |
-
-⚠️ **101 lotli taklif haqida:** 23.11 dagi run'da bu taklif haqiqatan yuborilib ketdi. Sayt uni rad etmadi va savdodagi **hamma 100 lotni bitta bitimga** berdi (B26000255, TESTIVEST, 100 000 000 so'm). Sayt mavjuddan ko'p lotga berilgan taklifni rad etmay, bor lot bilan bajaradi. Bu kutilgan qoidami yoki xatomi, aniqlash kerak. Test xavfsiz usul topilmaguncha o'chirib qo'yilgan, yoqish uchun: `auction.negativ101=true`.
-
-## 2. Kontrakt yaratish: salbiy holatlar (`KontraktNegativTest`)
-
-Natija: **13 tadan 12 tasi o'tdi, 1 ta xato topildi** (23.11.2026).
-
-Xavfsizlik: salbiy holatlarda brauzerdan E-IMZO'ga ketadigan imzo so'rovi to'sib qo'yiladi. Forma tekshiruvdan o'tib ketsa ham kontrakt yuborilmaydi.
+Natija: **13 tadan 12 tasi o'tdi, 1 ta xato topildi**. Imzo so'rovi brauzerda to'sib qo'yiladi, hech narsa yuborilmaydi.
 
 | Holat | Natija |
 |---|---|
-| Narxga minus (-500) | ✅ minus kiritilmaydi |
-| Lot hajmiga minus | ✅ minus kiritilmaydi |
-| Sotuvchi zakalatiga minus | ✅ minus kiritilmaydi |
-| Xaridor zakalatiga minus | ✅ minus kiritilmaydi |
-| Yetkazib berish muddatiga minus | ✅ minus kiritilmaydi |
-| To'lov muddatiga minus | ✅ minus kiritilmaydi |
+| Narx, lot hajmi, ikkala zakalat, yetkazib berish va to'lov muddatiga minus (-500) | ✅ minus kiritilmaydi |
 | **Narx = 0** | ❌ **XATO: forma o'tadi va imzo so'raydi** |
-| Sotuvchi zakalati 0% | ✅ rad etiladi: «0,1 % – 10 % oralig'ida bo'lishi kerak» |
-| Sotuvchi zakalati 15% | ✅ maydon 10% dan ortig'ini kiritishga yo'l qo'ymaydi («1» qoladi) |
-| Xaridor zakalati 0% | ✅ rad etiladi |
-| Xaridor zakalati 15% | ✅ maydon yo'l qo'ymaydi |
-| Bo'sh forma | ✅ rad etiladi: «Majburiy maydon», «kamida 1 ta fayl kiritilishi kerak» |
+| Sotuvchi / xaridor zakalati 0% | ✅ rad etiladi: «0,1 % – 10 % oralig'ida bo'lishi kerak» |
+| Sotuvchi / xaridor zakalati 15% | ✅ maydon 10% dan ortig'ini kiritmaydi |
+| Bo'sh forma | ✅ rad etiladi: «Majburiy maydon» |
 | Hujjat yuklanmagan | ✅ rad etiladi: «kamida 1 ta fayl kiritilishi kerak» |
 
-## 3. Bitim holatlari (`BitimHolatlariTest`)
+## 2. Auksion (`AuksionOddiyTest`)
 
-Bitimlar «To'lov kutilmoqda» holatida bo'lishi kerak. Balans HKKP → Balans sahifasidan tekshiriladi: mijozlar uchun «Mijozlar balansi», operatsiyalar tarixi uchun «Broker balansi».
+| # | Qadam | Holat |
+|---|---|---|
+| 1 | Treyder 1 kontrakt yaratadi | ✅ |
+| 2 | Moderator 3 rolda tasdiqlaydi | ✅ |
+| 3 | Admin savdo vaqtini qo'yadi (e'lon 1 daq, savdo 1 daq) | ✅ |
+| 4 | 100 lot savdoga; salbiy: **-5 lot** (minus kiritilmaydi), **0 lot** (rad: «Grafik lot yuborilishi kerak») | ✅ |
+| 5 | Treyder 2 TESTIVEST nomidan 1 lotdan 7 ta taklif | ⚠️ 21:57 run'da 7-taklif savdo tugagach yetib bordi (6 bitim). Tuzatildi (yuqoriga qarang) |
+| 6 | Bitimlar hosil bo'ladi | ✅ |
+| 7 | Ikkala treyder ommaviy imzolaydi | ✅ |
+| 8 | Admin tasdiqlaydi | ✅ |
+| 9 | Salbiy holatlar yakuni | ✅ |
 
-| Holat | Bitim | Natija | Tekshirilgani |
-|---|---|---|---|
-| **To'lov** (xaridor) | B26000256 | ✅ | «Muvofaqiyatli to'landi», holat «To'langan». TESTIVEST erkin mablag'i **900 000** ga kamaydi (1 000 000 − 100 000 zakalat) |
-| **Bekor qilish: Kelishuv** | B26000242 | ✅ | Sotuvchi so'rov yuboradi, xaridor «Bekor qilish so'rovi» sahifasida tasdiqlaydi, holat «Bekor qilingan», zakalat blokdan chiqadi |
-| **Bekor qilish: Xaridor jarimasi** | B26000243 | ✅ | **100 000 so'm** (zakalat) xaridordan sotuvchiga o'tadi |
-| **Bekor qilish: Sotuvchi jarimasi** | B26000244 | ✅ | **100 000 so'm** (zakalat) sotuvchidan xaridorga o'tadi |
-| **To'lov muddatini uzaytirish** | B26000247 | ✅ | Sotuvchi 2 ish kuniga so'raydi, xaridor qabul qiladi |
-| Yetkazib berish muddatini uzaytirish | B26000257 | ⏳ yozilgan, hali ishga tushirilmagan | |
-| YBHR yuborish va tasdiqlash, «Bajarildi» | — | ⏳ hali yozilmagan | |
-| YBHR'ning yarmi, keyin kelishuv, «Qisman bajarildi» | — | ⏳ hali yozilmagan | |
+Qo'shilgan, hali sinalmagan (5-qadam, savdoning qolgan vaqtida): **0 lotga taklif** (rad etilishi kerak), **101 lotga taklif** (qabul qilinadi, qisman yutadi, savatchada sariq), **sotuvchi o'z mahsulotiga taklif** (rad etilishi kerak). Savdodan keyin «Mening takliflarim» (savatcha) ranglari o'qiladi: yashil — yutgan, qizil — yutqizgan, sariq — qisman.
 
-Eslatma: avvalgi bitimlar IBOD-AZIZ KELAJAGI'ning o'z nomidan edi. Uning hisobida pul yo'q («Hisobda mablag' yetarli emas»), shuning uchun to'lov TESTIVEST MCHJ mijozi nomidan sinaladi.
+## 3. Bitim holatlari (`BitimHolatlariTest`): 7 ta stsenariy
+
+Har bir stsenariy o'z bitimida. Balans va jarima HKKP → Balans dan tekshiriladi.
+
+| # | Stsenariy | Bitim | Natija | Tekshirilgani |
+|---|---|---|---|---|
+| 1 | To'lov → YBHR to'liq → xaridor tasdiqlaydi | B26000263 | ✅ | To'lovda TESTIVEST erkin mablag'i **900 000** ga kamaydi; holat **«Bajarildi»** |
+| 2 | To'lov → YBHR yarmi (0,5) → kelishuv bilan bekor | B26000264 | ✅ | Holat **«Qisman bajarildi»**, jarima yo'q |
+| 3 | Kelishuv bilan bekor qilish | B26000265 | ✅ | Jarima yo'q, zakalat (100 000) blokdan chiqdi |
+| 4 | Xaridor jarimasi | B26000266 | ✅ | **100 000** (xaridor zakalati) TESTIVEST → sotuvchi |
+| 5 | Sotuvchi jarimasi | B26000267 | ✅ | **100 000** (sotuvchi zakalati) sotuvchi → TESTIVEST |
+| 6 | To'lov muddatini uzaytirish: qabul va rad | B26000268 | ✅ | Qabul: 26.11 → **30.11** (aynan 2 ish kuni); rad: sana o'zgarmadi |
+| 7 | Yetkazib berish muddatini uzaytirish: qabul va rad | B26000262 | ✅ | Qabul: 07.12 → **09.12** (2 ish kuni); rad: sana o'zgarmadi |
+
+YBHR tartibi: shartnoma raqami → faktura raqami, sana, miqdor → **xlsx hujjat yuklanadi** → «Ro'yxatga qo'shish» → «Yuborish» → xaridor YBHR sahifasida tasdiqlaydi.
 
 ## 4. Topilgan xatolar va savollar
 
 | # | Joy | Nima | Holat |
 |---|---|---|---|
 | 1 | Kontrakt yaratish | **Narx 0 bo'lsa ham forma o'tadi va imzo so'raydi** | ❌ Xato |
-| 2 | Auksion, taklif | 100 lotli savdoga 101 lotga taklif rad etilmaydi, 100 lotga bajariladi | ❓ Qoidami yoki xatomi, aniqlash kerak |
-| 3 | Auksion, taklif | 10 ta tez taklifdan 7 ta bitim chiqdi (20:00 dagi savdo). 7 ta taklifda 7 tasi chiqadi | ❓ Sababini aniqlash kerak |
-| 4 | Kontrakt formasi | «0,1 % – 10 % oralig'ida bo'lishi kerak» yozuvi to'g'ri qiymatda ham ko'rinib turadi | ❓ Avvalroq kuzatilgan |
+| 2 | Birja komissiyasi | Har tomondan **800 so'm = 0,08%** (1 000 000 dan), bitim tuzilganda yechiladi. Kutilgan 0,12% | ❓ Aniqlash kerak |
+| 3 | Kontrakt formasi | «0,1 % – 10 % oralig'ida bo'lishi kerak» yozuvi to'g'ri qiymatda ham ko'rinadi | ❓ Avvalroq kuzatilgan |
 
-## 5. Hali qilinmaganlar
+Aniqlangan qoida (xato emas): mavjuddan ko'p lotga (101) taklif qabul qilinadi va bor lot bilan qisman bajariladi (23.11 da B26000255: 100 lot).
 
-- Sotuvchi o'z mahsulotiga taklif berib ko'rishi (salbiy holat).
-- YBHR: to'liq va yarim, «Bajarildi» va «Qisman bajarildi».
-- So'rovlarni rad etish (bekor qilish va muddat uzaytirish so'rovlarida «Bekor qilish» tugmasi).
-- Moderator kontraktni ochib, fayllarini yuklab olishini tekshirish (tugma topilgan: «Hujjatlarni yuklab olish»).
-- Spirt, Oltin, Kumush, Subsidiya: o'ziga xos qadamlar (xaridorlar ro'yxati, limit, spread).
+## 5. Keyingi qadamlar (24.11)
+
+1. To'liq jarayonni yangi tezlashtirishlar bilan ishga tushirish va vaqtni o'lchash (maqsad 10–13 daq).
+2. Savdodagi yangi salbiy holatlar va savatcha ranglarini tekshirish.
+3. Komissiya 0,12% / 0,08% ni aniqlab, testga tekshiruv qo'shish.
+4. Keyin maxsus savdolar: Spirt, Oltin (Tilla), Kumush, Subsidiya — har biri alohida run.

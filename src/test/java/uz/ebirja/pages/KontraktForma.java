@@ -39,7 +39,7 @@ public class KontraktForma {
         d.get(traderBase + "/uz/trader/listing/sales/create");
         if (waitFor(() -> visible(d, By.name("amount")), 30) == null)
             throw new AssertionError("Kontrakt yaratish formasi ochilmadi: " + d.getCurrentUrl());
-        sleep(3000);
+        sleep(1500);
         return this;
     }
 
@@ -132,11 +132,14 @@ public class KontraktForma {
                     if (!val.isEmpty() && !val.toLowerCase().contains("tanlang")) { done.add(id); continue; }
                     String label = String.valueOf(js().executeScript("let el=arguments[0]; for(let i=0;i<8 && el;i++){ el=el.parentElement; if(!el) break; let l=el.querySelector('label'); if(l) return l.innerText; } return '';", in));
                     js().executeScript("arguments[0].scrollIntoView({block:'center'})", in);
-                    if (label.startsWith("Mahsulot")) { in.sendKeys(product); sleep(3000); }
-                    else { in.sendKeys(Keys.ARROW_DOWN); sleep(1800); }
-                    if (d.findElements(By.cssSelector("[id^='" + id.replace("-input", "") + "-option-']")).isEmpty()) { in.sendKeys(Keys.ESCAPE); done.add(id); continue; }
+                    if (label.startsWith("Mahsulot")) in.sendKeys(product);
+                    else in.sendKeys(Keys.ARROW_DOWN);
+                    // qat'iy kutish o'rniga: variantlar chiqishini kutamiz (ko'pi bilan 4 s)
+                    String optSel = "[id^='" + id.replace("-input", "") + "-option-']";
+                    Object bor = waitFor(() -> d.findElements(By.cssSelector(optSel)).isEmpty() ? null : Boolean.TRUE, 4);
+                    if (bor == null) { in.sendKeys(Keys.ESCAPE); done.add(id); continue; }
                     in.sendKeys(Keys.ENTER);
-                    sleep(1200);
+                    sleep(400); // tanlovdan keyin bog'liq maydonlar (marka, sinf...) avtomatik to'ladi
                     done.add(id);
                     changed = true;
                 } catch (StaleElementReferenceException e) { changed = true; }

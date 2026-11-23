@@ -13,7 +13,9 @@ public static class EimzoWin {
     [DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern int GetWindowText(IntPtr h, StringBuilder s, int n);
     [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr h);
     [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr h, int cmd);
-    public static string Find(uint[] pids, bool focus) {
+    [DllImport("user32.dll")] public static extern bool PostMessage(IntPtr h, uint msg, IntPtr w, IntPtr l);
+    public static string Find(uint[] pids, bool focus) { return Find(pids, focus, false); }
+    public static string Find(uint[] pids, bool focus, bool close) {
         string found = null;
         EnumWindows((h, p) => {
             uint pid; GetWindowThreadProcessId(h, out pid);
@@ -23,6 +25,7 @@ public static class EimzoWin {
             if (t.Length == 0) return true;
             found = t;
             if (focus) { ShowWindow(h, 5); SetForegroundWindow(h); }
+            if (close) PostMessage(h, 0x0010, IntPtr.Zero, IntPtr.Zero); // WM_CLOSE: oyna parolsiz yopiladi
             return false;
         }, IntPtr.Zero);
         return found;
@@ -32,5 +35,6 @@ public static class EimzoWin {
 $pids = @(Get-Process E-IMZO, javaw -ErrorAction SilentlyContinue | Where-Object { $_.Path -like '*E-IMZO*' } | ForEach-Object { [uint32]$_.Id })
 if ($pids.Count -eq 0) { exit 0 }
 $focus = $args -contains 'focus'
-$t = [EimzoWin]::Find([uint32[]]$pids, $focus)
+$close = $args -contains 'close'
+$t = [EimzoWin]::Find([uint32[]]$pids, $focus, $close)
 if ($t) { Write-Output $t }

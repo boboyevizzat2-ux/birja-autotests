@@ -1,0 +1,20 @@
+<!DOCTYPE suite SYSTEM "https://testng.org/testng-1.0.dtd">
+<!-- TO'LIQ JARAYON (bitta run): kontrakt salbiy testlari -> auksion (7 bitim) -> 7 ta bitim holati.
+     Ishga tushirish: IntelliJ "To'liq jarayon" tugmasi yoki: mvn test -Dsuite=toliq-jarayon.xml -->
+<suite name="eBirja: to'liq jarayon" verbose="1" preserve-order="true">
+    <test name="1. Kontrakt - salbiy holatlar" preserve-order="true">
+        <classes>
+            <class name="uz.ebirja.tests.KontraktNegativTest"/>
+        </classes>
+    </test>
+    <test name="2. Auksion - Oddiy (7 bitim)" preserve-order="true">
+        <classes>
+            <class name="uz.ebirja.tests.AuksionOddiyTest"/>
+        </classes>
+    </test>
+    <test name="3. Bitim holatlari (to'lov, YBHR, bekor qilish, muddatlar)" preserve-order="true">
+        <classes>
+            <class name="uz.ebirja.tests.BitimHolatlariTest"/>
+        </classes>
+    </test>
+</suite>

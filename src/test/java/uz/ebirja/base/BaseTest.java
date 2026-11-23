@@ -14,14 +14,16 @@ public abstract class BaseTest {
     protected WebDriver driver;
 
     /** Brauzer sozlamalari: E-IMZO ruxsatlari eslab qolinadi. */
-    public static ChromeOptions chromeOptions() {
+    public static ChromeOptions chromeOptions() { return chromeOptions("chrome-profile"); }
+
+    public static ChromeOptions chromeOptions(String profileDir) {
         ChromeOptions o = new ChromeOptions();
         if (Boolean.getBoolean("headless")) {
             o.addArguments("--headless=new");
         }
         o.addArguments("--window-size=1600,1000");
         // Doimiy profil: E-IMZO va boshqa ruxsatlar bir marta berilsa, eslab qolinadi
-        String profile = new File("chrome-profile").getAbsolutePath();
+        String profile = new File(profileDir).getAbsolutePath();
         o.addArguments("--user-data-dir=" + profile);
         // Saytga kompyuterdagi E-IMZO dasturiga (localhost) so'rovsiz ulanishga ruxsat
         o.addArguments("--disable-features=LocalNetworkAccessChecks,LocalNetworkAccessChecksWebSockets,BlockInsecurePrivateNetworkRequests,PrivateNetworkAccessSendPreflights");
@@ -66,9 +68,39 @@ public abstract class BaseTest {
         return driver;
     }
 
+    /**
+     * DOIMIY SESSIYALAR (tezlik uchun): har bir foydalanuvchi (trader1, trader2, admin1, admin2) uchun
+     * alohida brauzer (o'z profili bilan), kirish run davomida BIR MARTA. Run oxirida hammasi yopiladi.
+     */
+    private static final java.util.Map<String, WebDriver> SESSIYALAR = new java.util.LinkedHashMap<>();
+
+    protected WebDriver kim(String who) {
+        WebDriver d = SESSIYALAR.get(who);
+        if (d == null) {
+            ChromeOptions o = chromeOptions("chrome-profile-" + who); // har bir foydalanuvchiga alohida profil
+            ChromeDriver cd = new ChromeDriver(o);
+            grantEimzo(cd, "https://test-app.ebirja.uz", "https://test-head.ebirja.uz");
+            cd.manage().timeouts().pageLoadTimeout(Duration.ofSeconds(60));
+            d = cd;
+            SESSIYALAR.put(who, d);
+            boolean trader = who.startsWith("trader");
+            uz.ebirja.base.Ui.loginByKey(d, trader ? uz.ebirja.config.Config.traderUrl() : uz.ebirja.config.Config.adminUrl(),
+                    uz.ebirja.config.Config.get(who + ".login"), trader);
+        }
+        driver = d;
+        return d;
+    }
+
+    @org.testng.annotations.AfterSuite(alwaysRun = true)
+    public void hammaSessiyalarniYopish() {
+        for (WebDriver d : SESSIYALAR.values()) try { d.quit(); } catch (Exception ignore) {}
+        SESSIYALAR.clear();
+    }
+
+    /** Oddiy brauzerni yopadi; doimiy sessiya bo'lsa yopmaydi (keyingi test ishlatadi). */
     protected void closeBrowser() {
         if (driver != null) {
-            driver.quit();
+            if (!SESSIYALAR.containsValue(driver)) driver.quit();
             driver = null;
         }
     }

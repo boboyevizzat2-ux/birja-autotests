@@ -12,6 +12,7 @@
         <maven.compiler.source>21</maven.compiler.source>
         <maven.compiler.target>21</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <suite>testng.xml</suite>
     </properties>
     <dependencies>
         <!-- Selenium Java -->
@@ -37,6 +38,7 @@
         </dependency>
     </dependencies>
 
+
     <build>
         <plugins>
             <!-- Testlarni testng.xml bo'yicha ishga tushirish -->
@@ -46,7 +48,7 @@
                 <version>3.5.4</version>
                 <configuration>
                     <suiteXmlFiles>
-                        <suiteXmlFile>testng.xml</suiteXmlFile>
+                        <suiteXmlFile>${suite}</suiteXmlFile>
                     </suiteXmlFiles>
                 </configuration>
             </plugin>

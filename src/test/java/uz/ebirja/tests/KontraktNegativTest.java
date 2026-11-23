@@ -27,14 +27,13 @@ public class KontraktNegativTest extends BaseTest {
 
     @BeforeClass
     public void kirish() {
-        openBrowser();
         base = Config.traderUrl();
-        loginByKey(driver, base, Config.get("trader1.login"), true);
+        kim("trader1");
         forma = new KontraktForma(driver, PRODUCT);
     }
 
     @AfterClass(alwaysRun = true)
-    public void chiqish() { closeBrowser(); }
+    public void chiqish() { closeBrowser(); } // doimiy sessiya yopilmaydi
 
     @AfterMethod(alwaysRun = true)
     public void xatoRasmi(ITestResult r) {
@@ -49,13 +48,27 @@ public class KontraktNegativTest extends BaseTest {
         } catch (Exception ignore) {}
     }
 
+    /** To'g'ri to'ldirilgan forma (bir marta to'ldiriladi, keyingi holatlar shu formada tekshiriladi). */
+    boolean toldirilgan = false;
+
+    void tayyorForma() {
+        if (toldirilgan && driver.getCurrentUrl().contains("/create")) return;
+        forma.ochish(base).togriToldirish(true);
+        toldirilgan = true;
+    }
+
+    /** Maydonni to'g'ri qiymatiga qaytaradi (keyingi holat uchun). */
+    void qaytar(String name) { forma.set(name, KontraktForma.TOGRI.get(name)); }
+
     /** "Yuborish" bosiladi va kontrakt yuborilmaganini tekshiradi. */
     void radEtilishiKerak(String holat) {
         forma.eimzoImzoniTosish(); // xavfsizlik: imzo hech qachon qo'yilmaydi
+        long oldin = forma.eimzoUrinishlari();
         forma.yuborishniBosish();
-        sleep(6000);
+        waitFor(() -> forma.eimzoUrinishlari() > oldin ? Boolean.TRUE : null, 4);
         boolean oyna = Eimzo.cancelIfShown(1); // to'siq ishlamagan bo'lsa ham parol yozilmaydi
-        long urinish = forma.eimzoUrinishlari();
+        long urinish = forma.eimzoUrinishlari() - oldin;
+        if (urinish > 0) toldirilgan = false; // forma imzo kutish holatida qoldi -> keyingi holatda qayta ochiladi
         List<String> x = forma.xatolar();
         System.out.println(holat + " -> xabarlar: " + x + " | E-IMZO imzo so'rovlari: " + urinish + " " + forma.eimzoSorovlari());
         Assert.assertTrue(urinish == 0 && !oyna, holat + ": sayt formani QABUL QILDI va imzo so'radi (imzo to'sildi, kontrakt yuborilmadi). Xabarlar: " + x);
@@ -93,11 +106,13 @@ public class KontraktNegativTest extends BaseTest {
     }
 
     // ---------------------------------------------------------------- 2. narx 0
-    @Test(priority = 2, description = "Narx 0 bo'lsa kontrakt yuborilmaydi")
+    @Test(priority = 5, description = "Narx 0 bo'lsa kontrakt yuborilmaydi")
     public void narxNol() {
-        forma.ochish(base).togriToldirish(true);
-        if (maydonQabulQilmadi("mainPrice", "0", "2) Narx = 0")) return;
-        radEtilishiKerak("2) Narx = 0");
+        tayyorForma();
+        try {
+            if (maydonQabulQilmadi("mainPrice", "0", "2) Narx = 0")) return;
+            radEtilishiKerak("2) Narx = 0");
+        } finally { qaytar("mainPrice"); }
     }
 
     // ---------------------------------------------------------------- 3. zakalat chegaradan tashqari
@@ -109,17 +124,20 @@ public class KontraktNegativTest extends BaseTest {
         };
     }
 
-    @Test(priority = 3, dataProvider = "zakalatlar", description = "Zakalat 0,1% - 10% oralig'idan tashqarida bo'lsa kontrakt yuborilmaydi")
+    @Test(priority = 4, dataProvider = "zakalatlar", description = "Zakalat 0,1% - 10% oralig'idan tashqarida bo'lsa kontrakt yuborilmaydi")
     public void zakalatOraliqdanTashqari(String name, String qiymat) {
-        forma.ochish(base).togriToldirish(true);
-        if (maydonQabulQilmadi(name, qiymat, "3) " + name + " = " + qiymat + "%")) return;
-        radEtilishiKerak("3) " + name + " = " + qiymat + "%");
+        tayyorForma();
+        try {
+            if (maydonQabulQilmadi(name, qiymat, "3) " + name + " = " + qiymat + "%")) return;
+            radEtilishiKerak("3) " + name + " = " + qiymat + "%");
+        } finally { qaytar(name); }
     }
 
     // ---------------------------------------------------------------- 4. majburiy maydonlar bo'sh
-    @Test(priority = 4, description = "Majburiy maydonlar bo'sh bo'lsa kontrakt yuborilmaydi va xato ko'rsatiladi")
+    @Test(priority = 6, description = "Majburiy maydonlar bo'sh bo'lsa kontrakt yuborilmaydi va xato ko'rsatiladi")
     public void majburiyMaydonlarBosh() {
-        forma.ochish(base);
+        tayyorForma();
+        toldirilgan = false;
         for (String name : KontraktForma.TOGRI.keySet())
             if (visible(driver, org.openqa.selenium.By.name(name)) != null) forma.set(name, "");
         radEtilishiKerak("4) Bo'sh forma");
@@ -127,9 +145,10 @@ public class KontraktNegativTest extends BaseTest {
     }
 
     // ---------------------------------------------------------------- 5. hujjatsiz
-    @Test(priority = 5, description = "Hujjat yuklanmasa kontrakt yuborilmaydi")
+    @Test(priority = 2, description = "Hujjat yuklanmasa kontrakt yuborilmaydi")
     public void hujjatsiz() {
         forma.ochish(base).togriToldirish(false);
         radEtilishiKerak("5) Hujjat yuklanmagan");
+        toldirilgan = false;
     }
 }

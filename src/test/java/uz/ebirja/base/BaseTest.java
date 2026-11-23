@@ -6,6 +6,8 @@ import org.openqa.selenium.chrome.ChromeOptions;
 
 import java.io.File;
 import java.time.Duration;
+import java.util.HashMap;
+import java.util.Map;
 
 /** Brauzerni ochish va yopish uchun umumiy qism. */
 public abstract class BaseTest {
@@ -23,6 +25,17 @@ public abstract class BaseTest {
         o.addArguments("--user-data-dir=" + profile);
         // Saytga kompyuterdagi E-IMZO dasturiga (localhost) so'rovsiz ulanishga ruxsat
         o.addArguments("--disable-features=LocalNetworkAccessChecks,LocalNetworkAccessChecksWebSockets,BlockInsecurePrivateNetworkRequests,PrivateNetworkAccessSendPreflights");
+        // "Доступ к другим приложениям и сервисам на этом устройстве" so'rovi chiqmasligi uchun
+        // E-IMZO ruxsatini profil sozlamalariga doimiy yozib qo'yamiz ("Разрешить" bosilgandek)
+        Map<String, Object> allow = new HashMap<>();
+        for (String origin : new String[]{"https://test-app.ebirja.uz:443,*", "https://test-head.ebirja.uz:443,*"}) {
+            allow.put(origin, Map.of("setting", 1));
+        }
+        Map<String, Object> prefs = new HashMap<>();
+        for (String type : new String[]{"local_network_access", "local_network", "loopback_network"}) {
+            prefs.put("profile.content_settings.exceptions." + type, allow);
+        }
+        o.setExperimentalOption("prefs", prefs);
         return o;
     }
 

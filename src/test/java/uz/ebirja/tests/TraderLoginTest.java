@@ -8,6 +8,7 @@ import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 import uz.ebirja.base.BaseTest;
+import uz.ebirja.base.Ui;
 import uz.ebirja.config.Config;
 import uz.ebirja.pages.LoginPage;
 
@@ -33,10 +34,10 @@ public class TraderLoginTest extends BaseTest {
         return new Object[][]{{"trader1"}, {"trader2"}};
     }
 
-    @Test(dataProvider = "treyderlar", description = "To'g'ri login va parol bilan treyder profiliga kiradi")
+    @Test(dataProvider = "treyderlar", description = "E-IMZO kaliti bilan treyder profiliga kiradi")
     public void togriLoginBilanKirish(String kim) {
         String jshshir = Config.get(kim + ".login");
-        login.loginAs(Config.traderUrl(), jshshir, Config.get(kim + ".password"));
+        Ui.loginByKey(driver, Config.traderUrl(), jshshir, true);
         new WebDriverWait(driver, Duration.ofSeconds(30))
                 .until(ExpectedConditions.urlContains("/trader/profile"));
         new WebDriverWait(driver, Duration.ofSeconds(20))

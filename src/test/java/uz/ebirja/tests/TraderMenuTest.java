@@ -10,7 +10,7 @@ import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 import uz.ebirja.base.BaseTest;
 import uz.ebirja.config.Config;
-import uz.ebirja.pages.LoginPage;
+import uz.ebirja.base.Ui;
 
 import java.time.Duration;
 
@@ -20,7 +20,7 @@ public class TraderMenuTest extends BaseTest {
     @BeforeClass
     public void kirish() {
         openBrowser();
-        new LoginPage(driver).loginAs(Config.traderUrl(), Config.get("trader1.login"), Config.get("trader1.password"));
+        Ui.loginByKey(driver, Config.traderUrl(), Config.get("trader1.login"), true);
         new WebDriverWait(driver, Duration.ofSeconds(30)).until(ExpectedConditions.urlContains("/trader/profile"));
     }
 

@@ -1,11 +1,11 @@
 <component name="ProjectRunConfigurationManager">
-  <configuration default="false" name="Auksion testi" type="MavenRunConfiguration" factoryName="Maven">
+  <configuration default="false" name="Auksion - Kumush" type="MavenRunConfiguration" factoryName="Maven">
     <MavenSettings>
       <option name="myGeneralSettings" />
       <option name="myRunnerSettings" />
       <option name="myRunnerParameters">
         <MavenRunnerParameters>
-          <option name="cmdOptions" value="-Dsurefire.suiteXmlFiles= -Dtest=AuctionFlowTest" />
+          <option name="cmdOptions" value="-Dsurefire.suiteXmlFiles= -Dtest=AuksionKumushTest" />
           <option name="profiles">
             <set />
           </option>

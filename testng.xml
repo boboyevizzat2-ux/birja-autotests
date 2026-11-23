@@ -6,9 +6,9 @@
             <class name="uz.ebirja.tests.TraderMenuTest"/>
         </classes>
     </test>
-    <test name="Auksion (boshidan oxirigacha)">
+    <test name="Auksion - Oddiy (boshidan oxirigacha)">
         <classes>
-            <class name="uz.ebirja.tests.AuctionFlowTest"/>
+            <class name="uz.ebirja.tests.AuksionOddiyTest"/>
         </classes>
     </test>
 </suite>

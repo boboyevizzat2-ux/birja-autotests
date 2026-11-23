@@ -18,6 +18,16 @@ eimzo.password=
 
 # Auksion testi sozlamalari
 auction.product=Асбестовый шнур
-auction.lots=10
+auction.lots=100
 auction.bidLots=1
+auction.bids=10
 auction.minutes=2
+
+# Har bir savdo turining o'z mahsuloti (bo'sh qolsa: spirt=Бентонит, oltin=Барда)
+auction.spirt.product=
+auction.oltin.product=
+auction.kumush.product=
+auction.subsidiya.product=
+
+# Xaridor (trader2) qaysi mijoz nomidan taklif beradi: STIR yoki nom (bo'h = birinchisi)
+auction.buyerClient=

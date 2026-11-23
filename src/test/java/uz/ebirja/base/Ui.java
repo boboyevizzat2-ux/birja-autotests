@@ -87,6 +87,46 @@ public final class Ui {
         ((JavascriptExecutor) d).executeScript("localStorage.clear(); sessionStorage.clear();");
     }
 
+    /** Jadval pastidagi "Ko'rsatish" (10/20/50/100) ro'yxatidan 100 ni tanlaydi (bo'lsa). */
+    public static void sahifada100(WebDriver d) {
+        for (WebElement in : d.findElements(By.cssSelector("main input[id^='react-select']"))) {
+            try {
+                Object txt = ((JavascriptExecutor) d).executeScript("let c=arguments[0].closest('[class*=\"-container\"]'); return c? c.innerText.trim() : '';", in);
+                if (!"10".equals(String.valueOf(txt))) continue;
+                ((JavascriptExecutor) d).executeScript("arguments[0].scrollIntoView({block:'center'}); arguments[0].focus();", in);
+                in.sendKeys(Keys.ARROW_DOWN);
+                sleep(1000);
+                for (WebElement op : d.findElements(By.cssSelector("[id*='-option-']")))
+                    if (op.isDisplayed() && op.getText().trim().equals("100")) { jsClick(d, op); sleep(4000); return; }
+                in.sendKeys(Keys.ESCAPE);
+            } catch (Exception ignore) {}
+        }
+    }
+
+    /**
+     * SALBIY testlar uchun: brauzerdan E-IMZO dasturiga ketadigan IMZO so'rovlarini to'sadi (sahifa qayta yuklanguncha).
+     * Sayt imzo so'rashga uringanini eimzoUrinishlari() ko'rsatadi; imzo qo'yilmaydi, hech narsa yuborilmaydi.
+     */
+    public static void eimzoTosish(WebDriver d) {
+        ((JavascriptExecutor) d).executeScript(
+                "window.__eimzoImzo = 0; window.__eimzoData = [];" +
+                "if (!window.__eimzoPatched) { window.__eimzoPatched = true;" +
+                "  const s = WebSocket.prototype.send;" +
+                "  WebSocket.prototype.send = function(x) {" +
+                "    if (/127.0.0.1|localhost/.test(this.url)) {" +
+                "      const t = String(x); window.__eimzoData.push(t.slice(0, 150));" +
+                "      if (/pkcs7|sign|load_key|create/i.test(t)) { window.__eimzoImzo++; return; }" +
+                "    }" +
+                "    return s.call(this, x);" +
+                "  };" +
+                "}");
+    }
+
+    public static long eimzoUrinishlari(WebDriver d) {
+        Object v = ((JavascriptExecutor) d).executeScript("return window.__eimzoImzo || 0;");
+        return v instanceof Number ? ((Number) v).longValue() : 0;
+    }
+
     /** ERI kalit (E-IMZO) orqali kirish. trader=true bo'lsa "Birja savdolari" platformasi tanlanadi. */
     public static void loginByKey(WebDriver d, String base, String jshshir, boolean trader) {
         logout(d, base);

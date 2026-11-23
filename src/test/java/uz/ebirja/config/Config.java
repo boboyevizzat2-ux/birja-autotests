@@ -33,9 +33,13 @@ public final class Config {
         return v.trim();
     }
 
-    /** Ixtiyoriy sozlama: faylda bo'lmasa standart qiymat qaytariladi. */
+    /**
+     * Ixtiyoriy sozlama: faylda bo'lmasa standart qiymat qaytariladi.
+     * Ishga tushirishda -Dkalit=qiymat berilsa, u fayldagidan ustun turadi.
+     */
     public static String getOr(String key, String def) {
-        String v = P.getProperty(key);
+        String v = System.getProperty(key);
+        if (v == null || v.isBlank()) v = P.getProperty(key);
         return (v == null || v.isBlank()) ? def : v.trim();
     }
 

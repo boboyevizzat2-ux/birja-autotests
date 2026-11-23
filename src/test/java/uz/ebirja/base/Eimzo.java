@@ -89,6 +89,31 @@ public final class Eimzo {
         return typePassword(20);
     }
 
+    /**
+     * Salbiy testlar uchun: E-IMZO oynasi timeoutSec ichida chiqsa, parol YOZMASDAN ESC bilan yopadi.
+     * @return true - oyna chiqdi (ya'ni sayt formani o'tkazib yubordi); false - oyna chiqmadi
+     */
+    public static boolean cancelIfShown(int timeoutSec) {
+        long end = System.currentTimeMillis() + timeoutSec * 1000L;
+        while (System.currentTimeMillis() < end) {
+            if (!windowTitle().isEmpty()) {
+                try {
+                    System.setProperty("java.awt.headless", "false");
+                    Robot robot = new Robot();
+                    focusWindow();
+                    robot.delay(400);
+                    robot.keyPress(KeyEvent.VK_ESCAPE);
+                    robot.keyRelease(KeyEvent.VK_ESCAPE);
+                    for (int i = 0; i < 10 && !windowTitle().isEmpty(); i++) sleep(300);
+                } catch (Exception ignore) {}
+                System.out.println("E-IMZO: oyna chiqdi va parolsiz yopildi");
+                return true;
+            }
+            sleep(300);
+        }
+        return false;
+    }
+
     private static void sleep(long ms) {
         try { Thread.sleep(ms); } catch (InterruptedException ignore) { Thread.currentThread().interrupt(); }
     }

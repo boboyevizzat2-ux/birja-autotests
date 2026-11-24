@@ -7,10 +7,10 @@ Avtotestlar uchun o'rganib chiqilgan: 21.11.2026.
 
 | Kabinet | Manzil | Akkaunt (`login.properties`) | Rol |
 |---|---|---|---|
-| Treyder | https://test-app.ebirja.uz | `trader1`: NEXTGEN CATERING MCHJ | Treyder |
-| Treyder | https://test-app.ebirja.uz | `trader2`: IBOD-AZIZ KELAJAGI XK | Treyder |
-| Moderator | https://test-head.ebirja.uz | `admin1`: Moxira T. T. | 17 ta rol, almashtiriladi (asosiysi `MODERATOR_LISTING_MAIN`) |
-| Admin | https://test-head.ebirja.uz | `admin2` | `ADMIN`: 103 ta sahifa, hammasini ko'radi |
+| Treyder | https://test-ms-app.ebirja.uz | `trader1`: NEXTGEN CATERING MCHJ | Treyder |
+| Treyder | https://test-ms-app.ebirja.uz | `trader2`: IBOD-AZIZ KELAJAGI XK | Treyder |
+| Moderator | https://test-ms-head.ebirja.uz | `admin1`: Moxira T. T. | 17 ta rol, almashtiriladi (asosiysi `MODERATOR_LISTING_MAIN`) |
+| Admin | https://test-ms-head.ebirja.uz | `admin2` | `ADMIN`: 103 ta sahifa, hammasini ko'radi |
 
 **Kirish xususiyatlari**
 - Treyder saytida "Birja savdolari" platformasini **login-parol sahifasining o'zida** tanlash kerak.

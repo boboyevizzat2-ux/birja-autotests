@@ -51,7 +51,7 @@ public class ProbeCalendar {
         try (Reader r = new InputStreamReader(new FileInputStream("login.properties"), StandardCharsets.UTF_8)) { p.load(r); }
         out = System.getProperty("probe.out");
         ChromeDriver cd = new ChromeDriver(BaseTest.chromeOptions());
-        BaseTest.grantEimzo(cd, "https://test-app.ebirja.uz", "https://test-head.ebirja.uz");
+        BaseTest.grantEimzo(cd, uz.ebirja.base.BaseTest.saytlar());
         d = cd; js = cd;
         String base = p.getProperty("admin.url");
         try {

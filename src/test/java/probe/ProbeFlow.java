@@ -95,7 +95,7 @@ public class ProbeFlow {
         lp.enable(org.openqa.selenium.logging.LogType.BROWSER, java.util.logging.Level.ALL);
         co.setCapability("goog:loggingPrefs", lp);
         ChromeDriver cd = new ChromeDriver(co);
-        uz.ebirja.base.BaseTest.grantEimzo(cd, "https://test-app.ebirja.uz", "https://test-head.ebirja.uz");
+        uz.ebirja.base.BaseTest.grantEimzo(cd, uz.ebirja.base.BaseTest.saytlar());
         d = cd;
         js = (JavascriptExecutor) d;
         try {

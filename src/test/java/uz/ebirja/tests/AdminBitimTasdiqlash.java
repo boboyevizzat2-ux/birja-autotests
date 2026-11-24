@@ -36,4 +36,8 @@ public class AdminBitimTasdiqlash extends AuctionFlowTest {
         loginByKey(driver, base, Config.get("admin2.login"), false);
         adminOmmaviyTasdiqla(base, dealNos);
     }
+
+    /** Faqat savdo vaqtini qo'yish qadamini sinash (eski qatorlar o'chiriladi, yangilari yaratiladi). */
+    @Test
+    public void savdoVaqtiniSinash() { step3_savdoVaqtiniQoyish(); }
 }

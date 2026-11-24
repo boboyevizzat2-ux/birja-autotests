@@ -82,7 +82,7 @@ public final class Ui {
     /** Saytdan chiqish (doimiy profilda cookie va localStorage tozalanadi). */
     public static void logout(WebDriver d, String base) {
         d.get(base + "/uz/auth/loginkey");
-        sleep(2000);
+        sleep(500);
         d.manage().deleteAllCookies();
         ((JavascriptExecutor) d).executeScript("localStorage.clear(); sessionStorage.clear();");
     }
@@ -155,30 +155,38 @@ public final class Ui {
         d.get(base + "/uz/auth/loginkey");
         WebElement keySel = waitFor(() -> visible(d, By.cssSelector("input[id^='react-select'], input#key")), 30);
         if (keySel == null) throw new RuntimeException("Kirish sahifasi ochilmadi (VPN?): " + base);
-        sleep(2500);
-        if (trader) jsClick(d, d.findElement(By.xpath("//button[contains(normalize-space(.),'Birja savdolari')]")));
-        sleep(800);
+        sleep(600);
+        if (trader) jsClick(d, waitFor(() -> visible(d, By.xpath("//button[contains(normalize-space(.),'Birja savdolari')]")), 10));
+        sleep(300);
         boolean found = false;
         for (int t = 0; t < 10 && !found; t++) {
             ((JavascriptExecutor) d).executeScript("arguments[0].focus()", keySel);
             keySel.sendKeys(Keys.ARROW_DOWN);
-            sleep(2000);
+            waitFor(() -> d.findElements(By.cssSelector("[id*='-option-']")).stream().anyMatch(o -> o.getText().contains(jshshir)) ? Boolean.TRUE : null, 3);
             for (WebElement opt : d.findElements(By.cssSelector("[id*='-option-']")))
                 try { if (opt.isDisplayed() && opt.getText().contains(jshshir)) { jsClick(d, opt); found = true; break; } } catch (Exception ignore) {}
-            if (!found) { keySel.sendKeys(Keys.ESCAPE); sleep(1000); }
+            if (!found) { keySel.sendKeys(Keys.ESCAPE); sleep(500); }
         }
         if (!found) throw new RuntimeException("E-IMZO ro'yxatida kalit topilmadi: " + jshshir);
-        sleep(800);
+        sleep(300);
         jsClick(d, d.findElement(By.xpath("//button[@type='submit' and contains(normalize-space(.),'Tizimga kirish')]")));
         // E-IMZO parol oynasi kechikib chiqishi mumkin: sahifa ochilguncha kuzatib turamiz
         long end = System.currentTimeMillis() + 90_000;
         while (System.currentTimeMillis() < end && d.getCurrentUrl().contains("/auth/")) {
             if (!Eimzo.windowTitle().isEmpty()) Eimzo.typePassword(2);
-            sleep(700);
+            sleep(250);
         }
-        if (d.getCurrentUrl().contains("/auth/"))
-            throw new RuntimeException("ERI kalit bilan kirib bo'lmadi: " + jshshir);
-        sleep(3000);
+        if (d.getCurrentUrl().contains("/auth/")) {
+            String matn = "";
+            try {
+                matn = d.findElement(By.tagName("body")).getText().replace('\n', ' ');
+                java.io.File f = ((TakesScreenshot) d).getScreenshotAs(OutputType.FILE);
+                java.nio.file.Files.createDirectories(java.nio.file.Paths.get("target/xato-rasmlar"));
+                java.nio.file.Files.copy(f.toPath(), java.nio.file.Paths.get("target/xato-rasmlar/login_" + jshshir + "_" + System.currentTimeMillis() + ".png"));
+            } catch (Exception ignore) {}
+            throw new RuntimeException("ERI kalit bilan kirib bo'lmadi: " + jshshir + " | sahifa: " + (matn.length() > 300 ? matn.substring(0, 300) : matn));
+        }
+        sleep(1000);
         System.out.println("Kirildi (" + jshshir + "): " + d.getCurrentUrl());
     }
 }

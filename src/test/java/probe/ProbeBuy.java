@@ -63,7 +63,7 @@ public class ProbeBuy {
         out = System.getProperty("probe.out");
         String product = new String(Files.readAllBytes(Paths.get(System.getProperty("productFile"))), StandardCharsets.UTF_8).trim();
         ChromeDriver cd = new ChromeDriver(BaseTest.chromeOptions());
-        BaseTest.grantEimzo(cd, "https://test-app.ebirja.uz", "https://test-head.ebirja.uz");
+        BaseTest.grantEimzo(cd, uz.ebirja.base.BaseTest.saytlar());
         d = cd; js = cd;
         String base = p.getProperty("trader.url");
         try {

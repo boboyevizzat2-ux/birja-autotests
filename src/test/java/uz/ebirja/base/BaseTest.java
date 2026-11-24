@@ -30,7 +30,8 @@ public abstract class BaseTest {
         // "Доступ к другим приложениям и сервисам на этом устройстве" so'rovi chiqmasligi uchun
         // E-IMZO ruxsatini profil sozlamalariga doimiy yozib qo'yamiz ("Разрешить" bosilgandek)
         Map<String, Object> allow = new HashMap<>();
-        for (String origin : new String[]{"https://test-app.ebirja.uz:443,*", "https://test-head.ebirja.uz:443,*"}) {
+        for (String s : saytlar()) {
+            String origin = s + ":443,*";
             allow.put(origin, Map.of("setting", 1));
         }
         Map<String, Object> prefs = new HashMap<>();
@@ -45,6 +46,16 @@ public abstract class BaseTest {
      * Chrome-ni ochadi.
      * Brauzerni ko'rsatmasdan (orqa fonda) ishga tushirish uchun: mvn test -Dheadless=true
      */
+    /** Treyder va admin saytlari (login.properties: trader.url, admin.url) - E-IMZO ruxsatlari shular uchun beriladi. */
+    public static String[] saytlar() {
+        return new String[]{origin(uz.ebirja.config.Config.traderUrl()), origin(uz.ebirja.config.Config.adminUrl())};
+    }
+
+    private static String origin(String url) {
+        java.net.URI u = java.net.URI.create(url.trim());
+        return u.getScheme() + "://" + u.getHost();
+    }
+
     /** Saytlarga kompyuterdagi E-IMZO dasturiga ulanish ruxsatini oldindan beradi. */
     public static void grantEimzo(ChromeDriver d, String... origins) {
         for (String origin : origins) {
@@ -62,7 +73,7 @@ public abstract class BaseTest {
 
     protected WebDriver openBrowser() {
         ChromeDriver cd = new ChromeDriver(chromeOptions());
-        grantEimzo(cd, "https://test-app.ebirja.uz", "https://test-head.ebirja.uz");
+        grantEimzo(cd, saytlar());
         driver = cd;
         driver.manage().timeouts().pageLoadTimeout(Duration.ofSeconds(60));
         return driver;
@@ -79,7 +90,7 @@ public abstract class BaseTest {
         if (d == null) {
             ChromeOptions o = chromeOptions("chrome-profile-" + who); // har bir foydalanuvchiga alohida profil
             ChromeDriver cd = new ChromeDriver(o);
-            grantEimzo(cd, "https://test-app.ebirja.uz", "https://test-head.ebirja.uz");
+            grantEimzo(cd, saytlar());
             cd.manage().timeouts().pageLoadTimeout(Duration.ofSeconds(60));
             d = cd;
             SESSIYALAR.put(who, d);

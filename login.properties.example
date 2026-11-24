@@ -1,7 +1,7 @@
 # Namuna fayl. Undan nusxa olib, nomini login.properties qiling va parollarni yozing.
 # login.properties GitHub-ga yuklanmaydi!
-trader.url=https://test-app.ebirja.uz
-admin.url=https://test-head.ebirja.uz
+trader.url=https://test-ms-app.ebirja.uz
+admin.url=https://test-ms-head.ebirja.uz
 
 trader1.login=
 trader1.password=
@@ -22,7 +22,8 @@ auction.lots=100
 auction.bidLots=1
 auction.bids=7
 auction.bidPauseMs=2000
-auction.minutes=2
+auction.minutes=1
+auction.savdoMinutes=2
 
 # Har bir savdo turining o'z mahsuloti (bo'sh qolsa: spirt=Бентонит, oltin=Барда)
 auction.spirt.product=

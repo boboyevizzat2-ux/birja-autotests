@@ -113,6 +113,7 @@ public class BitimHolatlariTest extends BaseTest {
     /** Faqat ko'rish: -Dbitimlar=B...,B... bo'yicha ikkala treyderning balans tarixidagi operatsiyalar. */
     @Test(description = "Bitimlar bo'yicha balans operatsiyalarini ko'rsatadi (hech narsa o'zgartirmaydi)")
     public void operatsiyalarniKorish() {
+        if (System.getProperty("bitimlar") == null) throw new org.testng.SkipException("Faqat qo'lda: -Dbitimlar=B... bilan");
         for (String who : new String[]{"trader1", "trader2"}) {
             login(who);
             for (String no : System.getProperty("bitimlar", "B26000242").split(",")) {
@@ -141,7 +142,9 @@ public class BitimHolatlariTest extends BaseTest {
             sleep(1500);
         }
         System.out.println("TO'LOV " + no + " xabarlar: " + toasts(driver));
-        String h = holatQanday(null, "Sotib olish", no);
+        // holat jadvalda biroz kechikib yangilanadi: 15 s gacha kutamiz
+        String h = "";
+        for (int u = 0; u < 4 && !h.contains("To'langan"); u++) { if (u > 0) sleep(3000); h = holatQanday(null, "Sotib olish", no); }
         Assert.assertTrue(h.contains("To'langan"), no + ": to'lovdan keyin holat 'To'langan' emas: " + h);
         BigDecimal[] keyin = balans(XARIDOR_STIR);
         System.out.println("TO'LOV " + no + " xaridor balansi (barcha/erkin/band/qarz): " + Arrays.toString(oldin) + " -> " + Arrays.toString(keyin));

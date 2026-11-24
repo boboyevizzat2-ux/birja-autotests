@@ -36,7 +36,12 @@ public class KontraktForma {
 
     /** Formani ochadi va yuklanishini kutadi. */
     public KontraktForma ochish(String traderBase) {
-        d.get(traderBase + "/uz/trader/listing/sales/create");
+        return ochishUrl(traderBase + "/uz/trader/listing/sales/create");
+    }
+
+    /** Istalgan kontrakt formasini ochadi (masalan, admin: qarama-qarshi auksion kontrakti). */
+    public KontraktForma ochishUrl(String url) {
+        d.get(url);
         if (waitFor(() -> visible(d, By.name("amount")), 30) == null)
             throw new AssertionError("Kontrakt yaratish formasi ochilmadi: " + d.getCurrentUrl());
         sleep(1500);
@@ -115,6 +120,55 @@ public class KontraktForma {
             for (String t : new String[]{"Majburiy maydon", "oralig", "kamida 1 ta fayl"})
                 if (!d.findElements(By.xpath("//main//*[not(*) and contains(text(),\"" + t + "\")]")).isEmpty()) r.add(t);
         return new ArrayList<>(r);
+    }
+
+    /**
+     * Admin formalaridagi ro'yxatlar ("frontend-library-select", input[role=combobox], id = maydon nomi).
+     * Bo'sh va faol ro'yxatlardan birinchi variantni tanlaydi; "mainProductId" da mahsulot nomi bo'yicha qidiradi.
+     * tanlov: maydon id -> kerakli variant matni (bo'lsa shu tanlanadi).
+     */
+    public void comboToldir(Map<String, String> tanlov) {
+        Set<String> done = new HashSet<>();
+        for (int pass = 0; pass < 6; pass++) {
+            boolean changed = false;
+            for (WebElement in : d.findElements(By.cssSelector("input.frontend-library-select__input[role=combobox]"))) {
+                try {
+                    String id = in.getAttribute("id");
+                    if (done.contains(id) || !in.isEnabled()) continue;
+                    String val = String.valueOf(js().executeScript(
+                            "let c=arguments[0].closest('[class*=\"__control\"]'); if(!c) return ''; let v=c.querySelector('[class*=\"single-value\"],[class*=\"multi-value\"]'); return v? v.innerText : '';", in)).trim();
+                    if (!val.isEmpty()) { done.add(id); continue; }
+                    js().executeScript("arguments[0].scrollIntoView({block:'center'})", in);
+                    String kerak = tanlov.getOrDefault(id, "mainProductId".equals(id) ? product : null);
+                    WebElement ctrl = (WebElement) js().executeScript("return arguments[0].closest('[class*=\"__control\"]') || arguments[0];", in);
+                    try { ctrl.click(); } catch (Exception e) { jsClick(d, ctrl); }
+                    if (kerak != null) in.sendKeys(kerak);
+                    By opt = By.cssSelector("[class*='frontend-library-select__option']");
+                    Object bor = waitFor(() -> d.findElements(opt).stream().anyMatch(WebElement::isDisplayed) ? Boolean.TRUE : null, 5);
+                    if (bor == null) { in.sendKeys(Keys.ESCAPE); done.add(id); continue; }
+                    WebElement tanla = null;
+                    for (WebElement o : d.findElements(opt))
+                        if (o.isDisplayed() && (kerak == null || o.getText().trim().equals(kerak))) { tanla = o; break; }
+                    if (tanla == null) for (WebElement o : d.findElements(opt)) if (o.isDisplayed()) { tanla = o; break; }
+                    jsClick(d, tanla);
+                    sleep(500); // bog'liq maydonlar (guruh, bo'lim...) avtomatik to'ladi
+                    done.add(id);
+                    changed = true;
+                } catch (StaleElementReferenceException e) { changed = true; }
+            }
+            if (!changed) break;
+        }
+    }
+
+    /** Admin formasidagi ro'yxatlarning hozirgi qiymatlari (id -> matn). */
+    public Map<String, String> comboQiymatlari() {
+        Map<String, String> m = new LinkedHashMap<>();
+        for (WebElement in : d.findElements(By.cssSelector("input.frontend-library-select__input[role=combobox]")))
+            try {
+                m.put(in.getAttribute("id"), String.valueOf(js().executeScript(
+                        "let c=arguments[0].closest('[class*=\"__control\"]'); if(!c) return ''; let v=c.querySelector('[class*=\"single-value\"]'); return v? v.innerText : '';", in)).trim());
+            } catch (Exception ignore) {}
+        return m;
     }
 
     /** Bo'sh ochiladigan ro'yxatlardan birinchisini (mahsulotni nomi bo'yicha) tanlaydi. */

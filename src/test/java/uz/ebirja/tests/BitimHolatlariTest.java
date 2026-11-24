@@ -51,6 +51,9 @@ public class BitimHolatlariTest extends BaseTest {
         String v = Config.getOr("bitim." + key, "");
         if (!v.isEmpty()) return v;
         if (AuctionFlowTest.OXIRGI_BITIMLAR.size() > n) return AuctionFlowTest.OXIRGI_BITIMLAR.get(n);
+        // shu run'da savdo testi ishlagan, lekin bitim bermagan bo'lsa — eski bitimlarda chalkash xato chiqarmaymiz
+        if (AuctionFlowTest.SAVDO_ISHLADI)
+            throw new org.testng.SkipException("Savdo testi bu stsenariy uchun bitim bermadi (" + (n + 1) + "-bitim yo'q) — o'tkazib yuborildi");
         return def;
     }
 

@@ -1,0 +1,16 @@
+<!DOCTYPE suite SYSTEM "https://testng.org/testng-1.0.dtd">
+<!-- QARAMA-QARSHI AUKSION (bitta run): kontrakt (salbiy + yaratish) -> tasdiqlash -> sessiya -> savdo (salbiy + 7 bitim)
+     -> imzolash, admin tasdiqlashi -> 7 ta bitim holati (to'lov, YBHR, bekor qilish, muddatlar).
+     Ishga tushirish: IntelliJ "Qarama-qarshi auksion" tugmasi yoki: mvn test -Dsuite=qarama-qarshi.xml -->
+<suite name="eBirja: qarama-qarshi auksion" verbose="1" preserve-order="true">
+    <test name="1. Qarama-qarshi auksion" preserve-order="true">
+        <classes>
+            <class name="uz.ebirja.tests.QaramaQarshiAuksionTest"/>
+        </classes>
+    </test>
+    <test name="2. Bitim holatlari (to'lov, YBHR, bekor qilish, muddatlar)" preserve-order="true">
+        <classes>
+            <class name="uz.ebirja.tests.BitimHolatlariTest"/>
+        </classes>
+    </test>
+</suite>

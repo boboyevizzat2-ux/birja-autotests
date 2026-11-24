@@ -1,6 +1,6 @@
 # eBirja avtotestlari: ro'yxat va so'nggi natijalar
 
-Oxirgi yangilanish: 24.11.2026, 15:00. Barcha testlar test saytida (`test-ms-app.ebirja.uz` — treyder, `test-ms-head.ebirja.uz` — admin) E-IMZO kaliti bilan ishlaydi.
+Oxirgi yangilanish: 24.11.2026, 21:00. Testlar hozir `test-app.ebirja.uz` (treyder) va `test-head.ebirja.uz` (admin) da ishlaydi (`login.properties` dagi 2 qator; mikroservis versiyasi: test-ms-app / test-ms-head) E-IMZO kaliti bilan ishlaydi.
 
 ## Qanday ishga tushiriladi
 
@@ -10,6 +10,7 @@ IntelliJ'da yuqoridagi ro'yxatdan tugmani tanlab ▶ bosiladi. Test vaqtida klav
 |---|---|
 | **To'liq jarayon** | Hammasi bitta run'da: kontrakt salbiy testlari → auksion (7 bitim) → 7 ta bitim holati |
 | Auksion - Oddiy | Faqat auksion |
+| **Qarama-qarshi auksion** | Kontrakt (moderator) → sessiya → savdo (salbiy + 7 bitim) → imzolash, tasdiqlash → 7 ta bitim holati |
 | Kontrakt - negativ | Faqat kontrakt formasidagi salbiy holatlar |
 | Bitim holatlari | Faqat 7 ta stsenariy (bitimlar `-Dbitim.<kalit>=B...` bilan beriladi) |
 | Auksion - Spirt / Oltin / Kumush / Subsidiya | Maxsus savdolar (keyingi bosqich, hali o'ziga xos qadamlari yo'q) |
@@ -105,16 +106,44 @@ Har bir stsenariy o'z bitimida (24.11 run'i). Balans va jarima HKKP → Balans d
 
 YBHR tartibi: shartnoma raqami → faktura raqami, sana, miqdor → **xlsx hujjat yuklanadi** → «Ro'yxatga qo'shish» → «Yuborish» → xaridor YBHR sahifasida tasdiqlaydi.
 
-## 4. Topilgan xatolar va savollar
+## 4. Qarama-qarshi auksion (`QaramaQarshiAuksionTest`) — ishlanmoqda
+
+Ishga tushirish: IntelliJ **«Qarama-qarshi auksion»** tugmasi yoki `mvn test -Dsuite=qarama-qarshi.xml`. Oddiy auksiondan alohida run.
+
+Jarayon (24.11 da qo'lda o'tib aniqlandi):
+1. Moderator **LISTING_MAIN** rolida kontrakt yaratadi (Listing → Qaramaqarshi auksion kontrakt ro'yxati → Kontrakt yaratish), **LISTING** roli tasdiqlaydi → «Ochilgan kontraktlar», savdo raqami (Kontrakt №) beriladi.
+2. Admin: Qarama qarshi auksion savdo sessiyasi → «Savdo sessiyasi» → sessiya turi, boshlanish/tugash vaqti (test: hozirdan 30 daqiqa). E'lon vaqti yo'q.
+3. Treyder: Savdolar → Qarama qarshi auksion savdolari → kartochkadagi bolg'acha → mijoz, miqdor, narx → «Sotish» / «Sotib olish». E-IMZO so'ralmaydi. Mijoz balansi yuklanmaguncha tugmalar o'chiq turadi.
+4. **Narx bir xil bo'lsa** bitim darhol tuziladi (savdo tugashini kutmaydi), raqami `A2600....`. Miqdor yetmasa — bor lot bilan qisman bajariladi, qolgani ochiq buyurtma bo'lib qoladi. Ochiq buyurtma «Ochiq buyurtmalar» oynasida belgilab «O'chirish» bilan bekor qilinadi.
+5. Keyin oddiy auksiondagidek: ikki treyder ommaviy imzolaydi, admin tasdiqlaydi, 7 ta stsenariy.
+
+24.11, 20:18 dagi run (19 daq 19 s) natijasi:
+
+| Qadam | Vaqt | Natija |
+|---|---|---|
+| Kontrakt formasi: minus qiymatlar, zakalat 0% / 15%, bo'sh forma, narx 0 | 1:35 | ✅ rad etildi |
+| Kontrakt formasi: hujjatsiz | — | ❌ **sayt xatosi**: kontrakt yaratildi («So'rov yuborildi!») |
+| Kontrakt yaratish + LISTING tasdiqlashi + sessiya | 0:57 | ✅ |
+| Savdo: minus miqdor/narx (maydon «-» ni olib tashlaydi), 0 miqdor («Min 1»), 0 narx («musbat bo'lishi kerak»), past narx, o'zidan sotib olish | 4:14 | ✅ bitim tuzilmadi |
+| Savdo: 7 ta bitim (A26000334–340), qisman bajarilish (2 lot bor, 3 so'raldi → A26000341, 1 lot ochiq qoldi) | 5:04 | ✅ |
+| Ommaviy imzolash + admin tasdiqlash | 0:58 | ✅ |
+| 7 ta stsenariy (to'lov+YBHR, yarim YBHR+kelishuv, kelishuv, xaridor/sotuvchi jarimasi, to'lov/yetkazish muddati) | 6:00 | ✅ hammasi |
+
+Shundan keyingi o'zgarishlar (25.11 da sinaladi): balans HKKP dan o'qiladi (har bitimda 100 000 zakalat + 800 yig'im), yuqori narxda bitim **tuzilmasligi** kutiladi (qoida: narx bir xil bo'lishi kerak), tezlashtirish (bitimlar ochiq buyurtmalar orqali tekshiriladi). Oxirgi run'da buyurtma oynasi ochilmay qoldi — bolg'achani qayta bosish qo'shildi, sinalmagan.
+
+## 5. Topilgan xatolar va savollar
 
 | # | Joy | Nima | Holat |
 |---|---|---|---|
 | 1 | Birja komissiyasi | Har tomondan **800 so'm = 0,08%** (1 000 000 dan), bitim tuzilganda yechiladi | ✅ To'g'ri (0,08% tasdiqlandi) |
 | 2 | Kontrakt formasi | «0,1 % – 10 % oralig'ida bo'lishi kerak» yozuvi to'g'ri qiymatda ham ko'rinadi | ❓ Avvalroq kuzatilgan |
+| 3 | Qarama-qarshi auksion kontrakti (moderator) | **Hujjat yuklanmasa ham kontrakt yaratiladi** (treyder formasida rad etiladi) | ❌ Xato |
 
 Aniqlangan qoida (xato emas): mavjuddan ko'p lotga (101) taklif qabul qilinadi va qolgan lot bilan qisman bajariladi.
 
-## 5. Keyingi qadamlar
+## 6. Keyingi qadamlar (25.11)
 
-1. Savatcha («Mening takliflarim») ranglarini tekshirish: yashil — yutgan, qizil — yutqizgan, sariq — qisman.
-2. Maxsus savdolar: Spirt, Oltin (Tilla), Kumush, Subsidiya — har biri alohida run.
+1. Qarama-qarshi auksion: to'liq run'ni o'tkazish, balans tekshiruvini tasdiqlash.
+2. Qarama-qarshi auksionga qo'shimcha salbiy holatlar: mijozsiz / bo'sh / kasr / harfli qiymatlar, mablag'dan katta xarid, «Bozor narxida» xarid, tugmani ikki marta bosish, sessiya tugagach buyurtma, bekor qilingan buyurtmaga mos taklif, kontraktni rad etish, noto'g'ri fayl turi, muddatlar 0, bitta tomon imzolagan bitim, ochiq buyurtmada pul bloklanishi va qaytishi.
+3. Savatcha («Mening takliflarim») ranglarini tekshirish: yashil — yutgan, qizil — yutqizgan, sariq — qisman.
+4. Maxsus savdolar: Spirt, Oltin (Tilla), Kumush, Subsidiya — har biri alohida run.

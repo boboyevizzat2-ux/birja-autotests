@@ -21,7 +21,10 @@ public abstract class BaseTest {
         if (Boolean.getBoolean("headless")) {
             o.addArguments("--headless=new");
         }
-        o.addArguments("--window-size=1600,1000");
+        if (Boolean.getBoolean("headless")) o.addArguments("--window-size=1600,1000");
+        else o.addArguments("--start-maximized"); // ekranda butun oynada ochiladi
+        // "Chrome avtomatlashtirilgan dastur boshqaruvida" sariq qatori joy egallamasin
+        o.setExperimentalOption("excludeSwitches", java.util.List.of("enable-automation"));
         // Doimiy profil: E-IMZO va boshqa ruxsatlar bir marta berilsa, eslab qolinadi
         String profile = new File(profileDir).getAbsolutePath();
         o.addArguments("--user-data-dir=" + profile);

@@ -106,13 +106,22 @@ public class KontraktNegativTest extends BaseTest {
     }
 
     // ---------------------------------------------------------------- 2. narx 0
-    @Test(priority = 5, description = "Narx 0 bo'lsa kontrakt yuborilmaydi")
+    /**
+     * Narx 0 ni sayt SERVERDA, E-IMZO imzosidan keyin tekshiradi ("Narx qiymati musbat bo'lishi kerak").
+     * Shuning uchun bu holatda imzo to'silmaydi: parol kiritiladi va server rad etishi kutiladi.
+     */
+    @Test(priority = 5, description = "Narx 0 bo'lsa kontrakt yuborilmaydi (server: 'Narx qiymati musbat bo'lishi kerak')")
     public void narxNol() {
-        tayyorForma();
-        try {
-            if (maydonQabulQilmadi("mainPrice", "0", "2) Narx = 0")) return;
-            radEtilishiKerak("2) Narx = 0");
-        } finally { qaytar("mainPrice"); }
+        forma.ochish(base).togriToldirish(true); // yangi sahifa: oldingi holatlardagi imzo to'sig'i yo'q
+        toldirilgan = false;
+        if (maydonQabulQilmadi("mainPrice", "0", "2) Narx = 0")) return;
+        forma.yuborishniBosish();
+        boolean imzo = Eimzo.typePassword(15);
+        boolean rad = waitToast(driver, "musbat", 15);
+        List<String> x = forma.xatolar();
+        System.out.println("2) Narx = 0 -> imzo: " + imzo + ", xabarlar: " + toasts(driver) + " " + x + (rad ? " ✓" : ""));
+        Assert.assertTrue(driver.getCurrentUrl().contains("/create"), "2) Narx = 0: kontrakt yuborilib ketdi! URL: " + driver.getCurrentUrl());
+        Assert.assertTrue(rad, "2) Narx = 0: sayt 'Narx qiymati musbat bo'lishi kerak' xabarini bermadi. Xabarlar: " + toasts(driver) + " " + x);
     }
 
     // ---------------------------------------------------------------- 3. zakalat chegaradan tashqari

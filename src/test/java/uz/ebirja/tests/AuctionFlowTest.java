@@ -789,6 +789,13 @@ public abstract class AuctionFlowTest extends BaseTest {
         // filtr: "Bitim holati" = "Imzolanish kutilmoqda" -> sarlavhadagi "hammasini tanlash" -> "Ommaviy imzolash"
         boolean filtr = holatFiltri("Imzolanish kutilmoqda");
         sahifada100(driver); // filtrdan keyin sayt sahifani yana 10 qatorga qaytaradi
+        if (filtr && waitFor(() -> rowWith(dealNo), 8) == null) {
+            // ba'zi saytlarda (monolit) holat filtri bo'sh qaytaradi -> filtrsiz, bittalab belgilaymiz
+            System.out.println("7) " + who + ": holat filtri bitimni ko'rsatmadi, filtrsiz belgilanadi");
+            filtr = false;
+            openContracts(base, tab);
+            sahifada100(driver);
+        }
         Assert.assertNotNull(waitFor(() -> rowWith(dealNo), 20), who + ": " + dealNo + " '" + tab + "' tabida yo'q");
         WebElement hammasi = filtr ? visible(driver, By.cssSelector("main thead input[type=checkbox]")) : null;
         if (hammasi != null) {

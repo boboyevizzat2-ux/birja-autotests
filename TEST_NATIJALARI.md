@@ -23,7 +23,8 @@ Sozlamalar (`login.properties`): `auction.lots=100`, `auction.bids=7`, `auction.
 | Run | Vaqt | Natija |
 |---|---|---|
 | 23.11, 21:57 | 17 daq | Eski usullar (har taklifga alohida oyna, admin bittalab tasdiqlagan) |
-| **24.11, 14:43** | **14 daq 33 s** | **30 testdan 29 tasi o'tdi**; o'tmagani «Narx = 0» (sayt xatosi) |
+| 24.11, 14:43 (test-ms-app) | 14 daq 33 s | 30 testdan 29 tasi; «Narx = 0» testi noto'g'ri tekshirgan edi (keyin tuzatildi) |
+| **24.11, 16:57 (test-app, monolit)** | **14 daq 4 s** | **30 testdan 29 tasi**; «Narx = 0» testi tuzatildi va alohida o'tdi → 30/30 |
 
 Qilingan tezlashtirishlar:
 - E-IMZO oynasini doimiy kuzatuvchi jarayon (`eimzo-server.ps1`);
@@ -53,12 +54,12 @@ Qilingan tezlashtirishlar:
 
 ## 1. Kontrakt yaratish: salbiy holatlar
 
-Natija: **13 tadan 12 tasi o'tdi, 1 ta xato topildi**. Imzo so'rovi brauzerda to'sib qo'yiladi, hech narsa yuborilmaydi.
+Natija: **13 tadan 13 tasi o'tdi**. Imzo so'rovi brauzerda to'sib qo'yiladi, hech narsa yuborilmaydi. Faqat «Narx = 0» da parol kiritiladi, chunki sayt narxni imzodan keyin serverda tekshiradi.
 
 | Holat | Natija |
 |---|---|
 | Narx, lot hajmi, ikkala zakalat, yetkazib berish va to'lov muddatiga minus (-500) | ✅ minus kiritilmaydi |
-| **Narx = 0** | ❌ **XATO: forma o'tadi va imzo so'raydi** |
+| Narx = 0 | ✅ imzodan keyin server rad etadi: «Narx qiymati musbat bo'lishi kerak» |
 | Sotuvchi / xaridor zakalati 0% | ✅ rad etiladi: «0,1 % – 10 % oralig'ida bo'lishi kerak» |
 | Sotuvchi / xaridor zakalati 15% | ✅ maydon 10% dan ortig'ini kiritmaydi |
 | Bo'sh forma | ✅ rad etiladi: «Majburiy maydon» |
@@ -108,9 +109,8 @@ YBHR tartibi: shartnoma raqami → faktura raqami, sana, miqdor → **xlsx hujja
 
 | # | Joy | Nima | Holat |
 |---|---|---|---|
-| 1 | Kontrakt yaratish | **Narx 0 bo'lsa ham forma o'tadi va imzo so'raydi** | ❌ Xato |
-| 2 | Birja komissiyasi | Har tomondan **800 so'm = 0,08%** (1 000 000 dan), bitim tuzilganda yechiladi | ✅ To'g'ri (0,08% tasdiqlandi) |
-| 3 | Kontrakt formasi | «0,1 % – 10 % oralig'ida bo'lishi kerak» yozuvi to'g'ri qiymatda ham ko'rinadi | ❓ Avvalroq kuzatilgan |
+| 1 | Birja komissiyasi | Har tomondan **800 so'm = 0,08%** (1 000 000 dan), bitim tuzilganda yechiladi | ✅ To'g'ri (0,08% tasdiqlandi) |
+| 2 | Kontrakt formasi | «0,1 % – 10 % oralig'ida bo'lishi kerak» yozuvi to'g'ri qiymatda ham ko'rinadi | ❓ Avvalroq kuzatilgan |
 
 Aniqlangan qoida (xato emas): mavjuddan ko'p lotga (101) taklif qabul qilinadi va qolgan lot bilan qisman bajariladi.
 

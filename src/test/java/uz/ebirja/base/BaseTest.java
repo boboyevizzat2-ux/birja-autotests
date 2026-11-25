@@ -41,6 +41,8 @@ public abstract class BaseTest {
         for (String type : new String[]{"local_network_access", "local_network", "loopback_network"}) {
             prefs.put("profile.content_settings.exceptions." + type, allow);
         }
+        // ketma-ket bir nechta fayl yuklash (shartnoma + to'lov cheki) so'rovsiz ruxsat etiladi
+        prefs.put("profile.default_content_setting_values.automatic_downloads", 1);
         o.setExperimentalOption("prefs", prefs);
         return o;
     }
@@ -96,10 +98,15 @@ public abstract class BaseTest {
             grantEimzo(cd, saytlar());
             cd.manage().timeouts().pageLoadTimeout(Duration.ofSeconds(60));
             d = cd;
-            SESSIYALAR.put(who, d);
             boolean trader = who.startsWith("trader");
-            uz.ebirja.base.Ui.loginByKey(d, trader ? uz.ebirja.config.Config.traderUrl() : uz.ebirja.config.Config.adminUrl(),
-                    uz.ebirja.config.Config.get(who + ".login"), trader);
+            try {
+                uz.ebirja.base.Ui.loginByKey(d, trader ? uz.ebirja.config.Config.traderUrl() : uz.ebirja.config.Config.adminUrl(),
+                        uz.ebirja.config.Config.get(who + ".login"), trader);
+            } catch (RuntimeException e) {
+                try { cd.quit(); } catch (Exception ignore) {} // kirmagan brauzer keyingi testga o'tib ketmasin
+                throw e;
+            }
+            SESSIYALAR.put(who, d); // faqat kirish muvaffaqiyatli bo'lsa
         }
         driver = d;
         return d;

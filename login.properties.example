@@ -20,10 +20,11 @@ eimzo.password=
 auction.product=Асбестовый шнур
 auction.lots=100
 auction.bidLots=1
-auction.bids=7
+auction.bids=9
+auction.deleteBids=1
 auction.bidPauseMs=2000
 auction.minutes=1
-auction.savdoMinutes=2
+auction.savdoMinutes=3
 
 # Har bir savdo turining o'z mahsuloti (bo'sh qolsa: spirt=Бентонит, oltin=Барда)
 auction.spirt.product=

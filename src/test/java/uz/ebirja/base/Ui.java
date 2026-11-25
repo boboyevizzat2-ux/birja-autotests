@@ -153,28 +153,51 @@ public final class Ui {
     public static void loginByKey(WebDriver d, String base, String jshshir, boolean trader) {
         logout(d, base);
         d.get(base + "/uz/auth/loginkey");
-        WebElement keySel = waitFor(() -> visible(d, By.cssSelector("input[id^='react-select'], input#key")), 30);
-        if (keySel == null) throw new RuntimeException("Kirish sahifasi ochilmadi (VPN?): " + base);
+        By keyBy = By.cssSelector("input[id^='react-select'], input#key");
+        if (waitFor(() -> visible(d, keyBy), 30) == null) throw new RuntimeException("Kirish sahifasi ochilmadi (VPN?): " + base);
         sleep(600);
         if (trader) jsClick(d, waitFor(() -> visible(d, By.xpath("//button[contains(normalize-space(.),'Birja savdolari')]")), 10));
         sleep(300);
         boolean found = false;
         for (int t = 0; t < 10 && !found; t++) {
-            ((JavascriptExecutor) d).executeScript("arguments[0].focus()", keySel);
-            keySel.sendKeys(Keys.ARROW_DOWN);
-            waitFor(() -> d.findElements(By.cssSelector("[id*='-option-']")).stream().anyMatch(o -> o.getText().contains(jshshir)) ? Boolean.TRUE : null, 3);
-            for (WebElement opt : d.findElements(By.cssSelector("[id*='-option-']")))
-                try { if (opt.isDisplayed() && opt.getText().contains(jshshir)) { jsClick(d, opt); found = true; break; } } catch (Exception ignore) {}
-            if (!found) { keySel.sendKeys(Keys.ESCAPE); sleep(500); }
+            // kalitlar yuklanganda sahifa qayta chiziladi: maydon har urinishda qaytadan topiladi
+            try {
+                WebElement keySel = waitFor(() -> visible(d, keyBy), 5);
+                if (keySel == null) continue;
+                ((JavascriptExecutor) d).executeScript("arguments[0].focus()", keySel);
+                keySel.sendKeys(Keys.ARROW_DOWN);
+                waitFor(() -> d.findElements(By.cssSelector("[id*='-option-']")).stream().anyMatch(o -> o.getText().contains(jshshir)) ? Boolean.TRUE : null, 3);
+                for (WebElement opt : d.findElements(By.cssSelector("[id*='-option-']")))
+                    try { if (opt.isDisplayed() && opt.getText().contains(jshshir)) { jsClick(d, opt); found = true; break; } } catch (Exception ignore) {}
+                if (!found) { keySel.sendKeys(Keys.ESCAPE); sleep(500); }
+            } catch (StaleElementReferenceException e) { sleep(500); }
         }
         if (!found) throw new RuntimeException("E-IMZO ro'yxatida kalit topilmadi: " + jshshir);
         sleep(300);
-        jsClick(d, d.findElement(By.xpath("//button[@type='submit' and contains(normalize-space(.),'Tizimga kirish')]")));
-        // E-IMZO parol oynasi kechikib chiqishi mumkin: sahifa ochilguncha kuzatib turamiz
-        long end = System.currentTimeMillis() + 90_000;
-        while (System.currentTimeMillis() < end && d.getCurrentUrl().contains("/auth/")) {
-            if (!Eimzo.windowTitle().isEmpty()) Eimzo.typePassword(2);
-            sleep(250);
+        // server xatolarini yozib boramiz (masalan /api/erp 400): kirish bo'lmasa, sababi logda ko'rinsin
+        ((JavascriptExecutor) d).executeScript(
+                "if(!window.__srv){window.__srv=[]; const f=window.fetch; window.fetch=async function(){const r=await f.apply(this,arguments); try{ if(r.status>=400){const u=(arguments[0]&&arguments[0].url)||arguments[0]; const t=await r.clone().text(); window.__srv.push(r.status+' '+u+' '+t.slice(0,200)); } }catch(e){} return r;};" +
+                "const o=XMLHttpRequest.prototype.open; XMLHttpRequest.prototype.open=function(m,u){this.addEventListener('load',()=>{ if(this.status>=400) window.__srv.push(this.status+' '+u+' '+String(this.responseText).slice(0,200)); }); return o.apply(this,arguments);};}");
+        // har urinishda: "Tizimga kirish" -> E-IMZO paroli -> sahifa ochilishi kutiladi. Server rad etsa, 3 martagacha qayta urinadi.
+        for (int urinish = 1; urinish <= 3 && d.getCurrentUrl().contains("/auth/"); urinish++) {
+            WebElement kirish = waitFor(() -> visible(d, By.xpath("//button[@type='submit' and contains(normalize-space(.),'Tizimga kirish')]")), 5);
+            if (kirish == null) break;
+            jsClick(d, kirish);
+            boolean parol = false;
+            long end = System.currentTimeMillis() + 30_000;
+            while (System.currentTimeMillis() < end && d.getCurrentUrl().contains("/auth/")) {
+                if (!Eimzo.windowTitle().isEmpty() && Eimzo.typePassword(2)) { parol = true; end = System.currentTimeMillis() + 15_000; } // paroldan keyin 15 s yetadi
+                Object xato = null;
+                try { xato = ((JavascriptExecutor) d).executeScript("return window.__srv && window.__srv.length ? window.__srv.join(' ## ') : null;"); } catch (Exception ignore) {}
+                if (parol && xato != null) { sleep(1500); break; }
+                sleep(250);
+            }
+            if (d.getCurrentUrl().contains("/auth/")) {
+                Object xato = null;
+                try { xato = ((JavascriptExecutor) d).executeScript("const x=(window.__srv||[]).join(' ## '); window.__srv=[]; return x;"); } catch (Exception ignore) {}
+                System.out.println("KIRISH " + jshshir + ": " + urinish + "-urinish bo'lmadi (parol " + (parol ? "kiritildi" : "so'ralmadi") + "), server javobi: " + xato);
+                sleep(2000);
+            }
         }
         if (d.getCurrentUrl().contains("/auth/")) {
             String matn = "";

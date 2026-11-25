@@ -61,12 +61,15 @@ public class BitimHolatlariTest extends BaseTest {
     public void h1_tolovVaYbhrToliq() {
         String no = bitim("ybhrToliq", 0, "B26000256");
         if (!holatQanday("trader2", "Sotib olish", no).contains("To'langan")) tolov(no);
+        // 'To'langan' bo'lgach shartnoma va to'lov cheki BIR MARTA yuklanadi (faqat shu bitimda)
+        hujjatlarniYuklash("trader2", "Sotib olish", no, true);
         String miqdor = Config.getOr("bitim.lotHajmi", "1");
         ybhrYuborish(no, miqdor);
         ybhrTasdiqlash(no);
         String h = holatQanday("trader1", "Sotish", no);
         System.out.println("YBHR to'liq " + no + " holati: " + h);
         Assert.assertTrue(h.contains("Bajarildi"), no + ": to'liq YBHR tasdiqlangandan keyin holat 'Bajarildi' emas: " + h);
+        hisobTekshir(no, X + ">" + X + " 900000 toliq tolovini blokirovkalash", X + ">" + S + " 1000000 yetkazilgan tovar uchun tolov");
     }
 
     @Test(priority = 22, description = "2-bitim: to'lov -> YBHR (yarmi) -> kelishuv bilan bekor -> 'Qisman bajarildi'")
@@ -77,21 +80,29 @@ public class BitimHolatlariTest extends BaseTest {
         ybhrYuborish(no, yarim);
         ybhrTasdiqlash(no);
         bekorQilish(no, "Kelishuv", null, "Qisman bajarildi");
+        hisobTekshir(no, X + ">" + X + " 900000 toliq tolovini blokirovkalash", X + ">" + S + " 500000 yetkazilgan tovar uchun tolov",
+                X + ">" + X + " 400000 toliq tolovini blokirovkadan chiqarish", X + ">" + X + " 100000 zakalat pulini blokirovkadan chiqarish");
     }
 
     @Test(priority = 23, description = "3-bitim: KELISHUV bilan bekor. Jarima yo'q, zakalatlar qaytadi")
     public void h3_bekorKelishuv() {
-        bekorQilish(bitim("kelishuv", 2, "B26000258"), "Kelishuv", null, "Bekor qilingan");
+        String no = bitim("kelishuv", 2, "B26000258");
+        bekorQilish(no, "Kelishuv", null, "Bekor qilingan");
+        hisobTekshir(no, X + ">" + X + " 100000 zakalat pulini blokirovkadan chiqarish");
     }
 
     @Test(priority = 24, description = "4-bitim: XARIDOR JARIMASI. Xaridor zakalati sotuvchiga o'tadi")
     public void h4_bekorXaridorJarimasi() {
-        bekorQilish(bitim("xaridorJarima", 3, "B26000259"), "Xaridor jarimasi", XARIDOR_STIR, "Bekor qilingan");
+        String no = bitim("xaridorJarima", 3, "B26000259");
+        bekorQilish(no, "Xaridor jarimasi", XARIDOR_STIR, "Bekor qilingan");
+        hisobTekshir(no, X + ">" + S + " 100000 xaridorning jarima");
     }
 
     @Test(priority = 25, description = "5-bitim: SOTUVCHI JARIMASI. Sotuvchi zakalati xaridorga o'tadi")
     public void h5_bekorSotuvchiJarimasi() {
-        bekorQilish(bitim("sotuvchiJarima", 4, "B26000260"), "Sotuvchi jarimasi", SOTUVCHI_STIR, "Bekor qilingan");
+        String no = bitim("sotuvchiJarima", 4, "B26000260");
+        bekorQilish(no, "Sotuvchi jarimasi", SOTUVCHI_STIR, "Bekor qilingan");
+        hisobTekshir(no, S + ">" + X + " 100000 sotuvchining jarima", X + ">" + X + " 100000 zakalat pulini blokirovkadan chiqarish");
     }
 
     @Test(priority = 26, description = "6-bitim: TO'LOV muddatini uzaytirish: qabul (sana + N ish kuni) va rad etish (sana o'zgarmaydi)")
@@ -99,6 +110,7 @@ public class BitimHolatlariTest extends BaseTest {
         String no = bitim("tolovUzaytirish", 5, "B26000261");
         muddatUzaytirish(no, "To'lov muddatini uzaytirish", "payment-request", "To'lovning oxirgi muddati", true);
         muddatUzaytirish(no, "To'lov muddatini uzaytirish", "payment-request", "To'lovning oxirgi muddati", false);
+        hisobTekshir(no); // muddat uzaytirishda pul harakati bo'lmasligi kerak
     }
 
     @Test(priority = 27, description = "7-bitim: to'lov -> YETKAZIB BERISH muddatini uzaytirish: qabul va rad etish")
@@ -107,6 +119,153 @@ public class BitimHolatlariTest extends BaseTest {
         if (!holatQanday("trader2", "Sotib olish", no).contains("To'langan")) tolov(no);
         muddatUzaytirish(no, "Yetkazib berish muddatini uzaytirish", "delivered-request", "Oxirgi yetkazib berish kuni", true);
         muddatUzaytirish(no, "Yetkazib berish muddatini uzaytirish", "delivered-request", "Oxirgi yetkazib berish kuni", false);
+        hisobTekshir(no, X + ">" + X + " 900000 toliq tolovini blokirovkalash");
+    }
+
+    @Test(priority = 28, description = "8-bitim: TEGILMAYDI. Holati 'To'lov kutilmoqda' va hisobda faqat bitim tuzilgandagi operatsiyalar")
+    public void h8_tegilmaganBitim() {
+        String no = bitim("tegilmagan", 7, "");
+        if (no.isEmpty()) throw new org.testng.SkipException("8-bitim berilmagan");
+        String h = holatQanday("trader2", "Sotib olish", no);
+        Assert.assertTrue(h.contains("To'lov kutilmoqda"), no + ": tegilmagan bitim 'To'lov kutilmoqda' emas: " + h);
+        hisobTekshir(no);
+        System.out.println("TEGILMAGAN BITIM: " + no + " ✓");
+    }
+
+    // ================================================================== XARIDOR HISOBI (HKKP -> Balans -> STIR ichi)
+    static final String X = XARIDOR_STIR, S = SOTUVCHI_STIR, BIRJA_STIR = "310967190";
+    static final long YIGIM = 800;
+
+    /** Harf kattaligi va apostrof turlari farqini olib tashlaydi (to'lash / toʻlash / to’lash). */
+    static String tekis(String t) { return t.toLowerCase().replaceAll("['`\\u02BB\\u02BC\\u2018\\u2019]", "").replaceAll("\\s+", " "); }
+
+    /**
+     * Xaridor hisobiga KIRADI (Balans -> STIR bosiladi), bitim raqami bo'yicha operatsiyalarni o'qiydi va
+     * kutilganlar bilan AYNAN solishtiradi: har biri "to'lovchi>oluvchi summa maqsad". Ortiqcha yoki yetishmagan operatsiya - xato.
+     * Bitim tuzilgandagi 4 ta operatsiya (zakalat bloki, 800 yig'im: hisoblandi/ushlab qolish/to'lash) har doim kutiladi.
+     */
+    void hisobTekshir(String no, String... qoshimcha) {
+        List<String> kutilgan = new ArrayList<>(List.of(
+                X + ">" + X + " 100000 zakalat pulini blokirovkalash",
+                X + ">" + BIRJA_STIR + " " + YIGIM + " vositachilik yigimini tolash",
+                X + ">" + X + " " + YIGIM + " vositachilik yigimini ushlab qolish",
+                X + ">" + X + " " + YIGIM + " vositachilik yigimini hisoblandi"));
+        kutilgan.addAll(Arrays.asList(qoshimcha));
+        login("trader2");
+        driver.get(base + "/uz/trader/hkkp/transaction");
+        jadvalKut(driver);
+        WebElement s = visible(driver, By.cssSelector("main input[placeholder='Qidirish']"));
+        s.sendKeys(Keys.CONTROL + "a");
+        s.sendKeys(X);
+        qidiruvKut(driver, X);
+        WebElement stir = waitFor(() -> visible(driver, By.xpath("//main//tbody//a[normalize-space(.)='" + X + "']")), 10);
+        Assert.assertNotNull(stir, "Balansda " + X + " STIR havolasi yo'q");
+        realClick(driver, stir);
+        Assert.assertNotNull(waitFor(() -> driver.getCurrentUrl().contains("/" + X + "/balance") ? Boolean.TRUE : null, 10), "STIR bosilganda hisob ichi ochilmadi: " + driver.getCurrentUrl());
+        jadvalKut(driver);
+        WebElement q = waitFor(() -> visible(driver, By.cssSelector("main input[placeholder='Qidirish']")), 10);
+        q.sendKeys(Keys.CONTROL + "a");
+        q.sendKeys(no);
+        qidiruvKut(driver, no);
+        List<String> qoldi = null, ortiqcha = null, topilgan = null;
+        // operatsiyalar biroz kechikib tushishi mumkin: 3 marta o'qiymiz
+        for (int u = 0; u < 3; u++) {
+            if (u > 0) { driver.navigate().refresh(); jadvalKut(driver); qidiruvKut(driver, no); }
+            topilgan = new ArrayList<>();
+            for (WebElement r : driver.findElements(By.cssSelector("main tbody tr"))) {
+                List<WebElement> td = r.findElements(By.cssSelector("td"));
+                if (td.size() < 8 || !td.get(3).getText().contains(no)) continue;
+                topilgan.add(stirOl(td.get(4).getText()) + ">" + stirOl(td.get(5).getText()) + " " + td.get(6).getText().replaceAll("[^0-9.]", "") + " " + tekis(td.get(7).getText()));
+            }
+            qoldi = new ArrayList<>(kutilgan);
+            ortiqcha = new ArrayList<>(topilgan);
+            for (String k : kutilgan) {
+                String[] b = k.split(" ", 3);
+                for (String t : ortiqcha) if (t.startsWith(b[0] + " " + b[1] + " ") && t.contains(b[2])) { ortiqcha.remove(t); qoldi.remove(k); break; }
+            }
+            if (qoldi.isEmpty() && ortiqcha.isEmpty()) break;
+        }
+        rasm("hisob_" + no);
+        System.out.println("HISOB " + X + " " + no + ": " + topilgan.size() + " ta operatsiya, kutilgan " + kutilgan.size() + (qoldi.isEmpty() && ortiqcha.isEmpty() ? " - hammasi mos ✓" : ""));
+        topilgan.forEach(t -> System.out.println("     " + t));
+        Assert.assertTrue(qoldi.isEmpty() && ortiqcha.isEmpty(), no + ": xaridor hisobi mos emas. Yetishmaydi: " + qoldi + " | Ortiqcha: " + ortiqcha);
+    }
+
+    /**
+     * "Shartnomani yuklab olish" oynasidan shartnoma (Shartnoma_uz.pdf) va to'lov chekini (contract_payment.pdf) haqiqatan yuklaydi.
+     * Har bir fayl: diskka tushgan, bo'sh emas, haqiqiy PDF ("%PDF" bilan boshlanadi, "%%EOF" bilan tugaydi).
+     * tolangan=false bo'lsa chek ko'rinmasligi kerak.
+     */
+    void hujjatlarniYuklash(String who, String tab, String no, boolean tolangan) {
+        hujjatTekshirildi = true;
+        try { hujjatlarniYuklashIchki(who, tab, no, tolangan); }
+        catch (Throwable e) { hujjatXatolar.add(no + " " + who + ": " + cut(String.valueOf(e.getMessage()), 250)); System.out.println("YUKLASH XATO " + cut(String.valueOf(e.getMessage()), 250)); }
+    }
+
+    /** Hujjat yuklash xatolari: stsenariyni to'xtatmaydi, h9 da hammasi birga tekshiriladi. */
+    List<String> hujjatXatolar = new ArrayList<>();
+    boolean hujjatTekshirildi = false;
+
+    @Test(priority = 29, description = "Shartnoma va to'lov chekini yuklab olish (bitta to'langan bitimda, bir marta)")
+    public void h9_hujjatYuklash() {
+        if (!hujjatTekshirildi) throw new org.testng.SkipException("Hujjat yuklanadigan bitim bo'lmadi");
+        Assert.assertTrue(hujjatXatolar.isEmpty(), "Hujjat yuklanmadi: " + hujjatXatolar);
+    }
+
+    void hujjatlarniYuklashIchki(String who, String tab, String no, boolean tolangan) {
+        login(who);
+        String papka = "target/yuklangan/" + no + "_" + who + "_" + System.currentTimeMillis();
+        menyu(bitimQatori(tab, no), "Shartnomani yuklab olish");
+        Object ochildi = waitFor(() -> { WebElement d = dialog(); return d != null && d.getText().contains(".pdf") ? Boolean.TRUE : null; }, 15);
+        rasm("yuklash_" + no + "_" + who);
+        Assert.assertNotNull(ochildi, no + " " + who + ": yuklab olish oynasida fayl yo'q");
+        String matn = clean(dialog().getText());
+        System.out.println("YUKLASH " + no + " " + who + " oyna: " + cut(matn, 250));
+        Assert.assertTrue(matn.contains("Shartnoma_"), no + " " + who + ": oynada shartnoma fayli yo'q: " + matn);
+        Assert.assertEquals(matn.contains("contract_payment"), tolangan, no + " " + who + (tolangan ? ": to'langan, lekin to'lov cheki yo'q: " : ": to'lanmagan, lekin to'lov cheki bor: ") + matn);
+        List<String> fayllar = new ArrayList<>(List.of("Shartnoma_"));
+        if (tolangan) fayllar.add("contract_payment");
+        for (String nom : fayllar) {
+            // har fayl alohida papkaga: ikkalasi bir xil nom bilan tushsa ham aralashmaydi
+            File dir = new File(papka + "/" + nom).getAbsoluteFile();
+            dir.mkdirs();
+            ((org.openqa.selenium.chrome.ChromeDriver) driver).executeCdpCommand("Browser.setDownloadBehavior", java.util.Map.of("behavior", "allow", "downloadPath", dir.getPath()));
+            // fayl nomi turgan qatordagi ENG O'NGDAGI belgi (⬇)
+            WebElement belgi = (WebElement) ((JavascriptExecutor) driver).executeScript(
+                    "const els=[...arguments[0].querySelectorAll('*')].filter(e=>!e.children.length&&(e.innerText||'').includes(arguments[1])); if(!els.length) return null; const y=els[0].getBoundingClientRect();" +
+                    "const c=[...arguments[0].querySelectorAll('svg')].filter(x=>{const r=x.getBoundingClientRect(); return r.width>0&&r.left>y.right&&Math.abs((r.top+r.height/2)-(y.top+y.height/2))<40;});" +
+                    "c.sort((p,q)=>q.getBoundingClientRect().left-p.getBoundingClientRect().left); return c[0]||null;", dialog(), nom);
+            Assert.assertNotNull(belgi, no + " " + who + ": '" + nom + "' yonida yuklash (⬇) belgisi topilmadi");
+            new org.openqa.selenium.interactions.Actions(driver).moveToElement(belgi).click().perform();
+            File tushdi = null;
+            Set<String> xabar = new LinkedHashSet<>();
+            for (long end = System.currentTimeMillis() + 15_000; tushdi == null && System.currentTimeMillis() < end; sleep(200)) {
+                for (String x : toasts(driver)) if (!x.isBlank()) xabar.add(x);
+                File[] fs = dir.listFiles();
+                if (fs != null) for (File x : fs) if (!x.getName().endsWith(".crdownload") && !x.getName().endsWith(".tmp") && x.length() > 0) tushdi = x;
+                if (tushdi == null && xabar.stream().anyMatch(x -> x.contains("exception") || x.startsWith("4") || x.startsWith("5"))) break; // server rad etdi
+            }
+            if (tushdi == null) { // boshqa fayl ham tekshirilishi uchun to'xtamaymiz
+                hujjatXatolar.add(no + " " + who + " '" + nom + "': yuklanmadi, sayt xabari " + xabar);
+                System.out.println("YUKLASH " + no + " " + who + " '" + nom + "': YUKLANMADI, sayt xabari " + xabar);
+                continue;
+            }
+            try {
+                byte[] b = java.nio.file.Files.readAllBytes(tushdi.toPath());
+                String bosh = new String(b, 0, Math.min(5, b.length), java.nio.charset.StandardCharsets.ISO_8859_1);
+                String oxir = new String(b, Math.max(0, b.length - 1024), Math.min(1024, b.length), java.nio.charset.StandardCharsets.ISO_8859_1);
+                boolean pdf = bosh.startsWith("%PDF") && oxir.contains("%%EOF") && b.length > 1000;
+                System.out.println("YUKLASH " + no + " " + who + ": " + tushdi.getName() + ", " + b.length / 1024 + " KB" + (pdf ? ", haqiqiy PDF ✓" : " - PDF EMAS"));
+                Assert.assertTrue(pdf, no + " " + who + ": " + tushdi.getName() + " butun PDF emas (" + b.length + " bayt, boshi '" + bosh + "')");
+            } catch (java.io.IOException e) { throw new AssertionError("Fayl o'qilmadi: " + tushdi, e); }
+        }
+    }
+
+    static String stirOl(String t) {
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile("\\b([0-9]{9,14})\\b").matcher(t);
+        String r = "?";
+        while (m.find()) r = m.group(1);
+        return r;
     }
 
     /** Faqat to'lov (alohida ishga tushirish uchun): -Dbitim.tolov=B... */
@@ -179,10 +338,19 @@ public class BitimHolatlariTest extends BaseTest {
         sleep(1500);
         System.out.println("BEKOR (" + tur + ") " + no + " so'rov yuborildi. Xabarlar: " + toasts(driver));
         login("trader2");
+        BigDecimal[] b0 = balans(XARIDOR_STIR);
         sorovgaJavob("canceled-request", no, "Tasdiqlash");
         String h = holatQanday(null, "Sotib olish", no);
         System.out.println("BEKOR (" + tur + ") " + no + " holati: " + h);
         Assert.assertTrue(h.contains(kutilganHolat), no + ": bekor qilingandan keyin holat '" + kutilganHolat + "' emas: " + h);
+        // xaridor balansi (barcha, erkin) farqi: kelishuv - zakalat (va to'langan qoldiq) qaytadi; xaridor jarimasi - barcha kamayadi; sotuvchi jarimasi - jarima + zakalat qo'shiladi
+        long kBarcha = jarimaStir == null ? 0 : XARIDOR_STIR.equals(jarimaStir) ? -JARIMA : JARIMA;
+        long kErkin = jarimaStir == null ? (kutilganHolat.startsWith("Qisman") ? 500_000 : JARIMA) : XARIDOR_STIR.equals(jarimaStir) ? 0 : 2 * JARIMA;
+        BigDecimal[] b1 = balans(XARIDOR_STIR);
+        Assert.assertTrue(b0 != null && b1 != null, no + ": xaridor balansi o'qilmadi");
+        long fBarcha = b1[0].subtract(b0[0]).longValue(), fErkin = b1[1].subtract(b0[1]).longValue();
+        System.out.println("BALANS FARQI (" + tur + ") " + no + ": barcha " + fBarcha + " (kutilgan " + kBarcha + "), erkin " + fErkin + " (kutilgan " + kErkin + ")" + (fBarcha == kBarcha && fErkin == kErkin ? " ✓" : ""));
+        Assert.assertTrue(fBarcha == kBarcha && fErkin == kErkin, no + " " + tur + ": xaridor balansi noto'g'ri o'zgardi: barcha " + fBarcha + "/" + kBarcha + ", erkin " + fErkin + "/" + kErkin);
         login(kimBalans);
         List<String> yangi = new ArrayList<>(operatsiyalar(no));
         yangi.removeAll(opOldin);
@@ -303,10 +471,18 @@ public class BitimHolatlariTest extends BaseTest {
         }
         Assert.assertNotNull(qoshildi, "YBHR: 'Ro'yxatga qo'shish' dan keyin ro'yxatga qator qo'shilmadi");
         rasm("ybhr_" + no + "_forma");
-        dialogTugma("Yuborish");
-        Eimzo.typePassword(10);
-        sleep(1500);
-        System.out.println("YBHR " + no + " (" + miqdor + ") yuborildi. Xabarlar: " + toasts(driver));
+        List<String> xabar = new ArrayList<>();
+        for (int u = 0; u < 2; u++) {
+            dialogTugma("Yuborish");
+            Eimzo.typePassword(10);
+            sleep(1500);
+            xabar = toasts(driver);
+            System.out.println("YBHR " + no + " (" + miqdor + ") yuborildi. Xabarlar: " + xabar);
+            if (xabar.stream().noneMatch(x -> x.contains("Parol") || x.contains("tasdiqlanmagan"))) break;
+            System.out.println("YBHR " + no + ": E-IMZO paroli noto'g'ri tushdi, qayta yuboriladi");
+            sleep(3000); // xabarlar yo'qolsin
+        }
+        Assert.assertTrue(xabar.stream().noneMatch(x -> x.contains("Parol") || x.contains("tasdiqlanmagan")), "YBHR " + no + " imzolanmadi: " + xabar);
     }
 
     /** YBHR: xaridor (trader2) YBHR sahifasida (Sotib olish) shu bitimning YBHR'ini tasdiqlaydi. */
@@ -406,9 +582,16 @@ public class BitimHolatlariTest extends BaseTest {
     WebElement bitimQatori(String tab, String no) {
         // xaridor mijoz nomidan (auction.buyerClient) bo'lsa, trader2 da bitim "Mijozimning shartnomalari" da
         boolean mijoz = tab.equals("Sotib olish") && !Config.getOr("auction.buyerClient", "").isEmpty();
-        driver.get(base + (mijoz ? "/uz/trader/contracts/client-contracts" : CONTRACTS));
-        jadvalKut(driver);
-        jsClick(driver, waitFor(() -> visible(driver, By.xpath("//main//*[normalize-space(text())='" + tab + "']")), 20));
+        // sahifa bo'sh ochilib qolsa (sayt sekin/javob bermasa) bir marta qayta ochiladi
+        WebElement t = null;
+        for (int u = 0; u < 2 && t == null; u++) {
+            if (u > 0) { System.out.println("DIQQAT: shartnomalar sahifasi ochilmadi, qayta ochiladi: " + driver.getCurrentUrl()); rasm("sahifa_ochilmadi"); }
+            driver.get(base + (mijoz ? "/uz/trader/contracts/client-contracts" : CONTRACTS));
+            jadvalKut(driver);
+            t = waitFor(() -> visible(driver, By.xpath("//main//*[normalize-space(text())='" + tab + "']")), 20);
+        }
+        Assert.assertNotNull(t, "Shartnomalar sahifasi ochilmadi: " + driver.getCurrentUrl());
+        jsClick(driver, t);
         sleep(3000);
         WebElement s = visible(driver, By.cssSelector("main input[placeholder='Qidirish']"));
         if (s != null) { s.sendKeys(no); qidiruvKut(driver, no); }

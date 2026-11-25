@@ -11,6 +11,9 @@ import java.util.Map;
 
 /** Brauzerni ochish va yopish uchun umumiy qism. */
 public abstract class BaseTest {
+    // birja vaqti: kompyuter soat mintaqasi boshqacha bo'lsa ham savdo va bitim vaqtlari Toshkent bo'yicha hisoblanadi
+    static { java.util.TimeZone.setDefault(java.util.TimeZone.getTimeZone("Asia/Tashkent")); }
+
     protected WebDriver driver;
 
     /** Brauzer sozlamalari: E-IMZO ruxsatlari eslab qolinadi. */

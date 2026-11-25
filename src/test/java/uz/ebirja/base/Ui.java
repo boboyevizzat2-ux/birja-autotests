@@ -39,10 +39,15 @@ public final class Ui {
     /** Element paydo bo'lguncha kutadi (null qaytarsa — kutishda davom etadi). */
     public static <T> T waitFor(Supplier<T> s, int seconds) {
         long end = System.currentTimeMillis() + seconds * 1000L;
+        Throwable oxirgi = null;
         while (System.currentTimeMillis() < end) {
-            try { T v = s.get(); if (v != null && !Boolean.FALSE.equals(v)) return v; } catch (Exception ignore) {}
+            try { T v = s.get(); if (v != null && !Boolean.FALSE.equals(v)) return v; }
+            catch (StaleElementReferenceException | NoSuchElementException kutilgan) { /* sahifa qayta chizilmoqda */ }
+            catch (Exception e) { oxirgi = e; }
             sleep(500);
         }
+        // kutilmagan xato yutilib ketmasin: vaqt tugasa logda ko'rinadi
+        if (oxirgi != null) System.out.println("KUTISH (" + seconds + " s) xato bilan tugadi: " + oxirgi.getClass().getSimpleName() + " " + cut(oxirgi.getMessage(), 160));
         return null;
     }
 

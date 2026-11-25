@@ -58,25 +58,16 @@ public abstract class SavdoAsos extends BaseTest {
         jsClick(driver, waitFor(() -> visible(driver, By.xpath("//main//button[starts-with(normalize-space(.),'Tasdiqlanmagan')]")), 20));
         Assert.assertNotNull(waitFor(() -> { for (String x : nos) if (rowWith(x) != null) return Boolean.TRUE; return null; }, 60), "Admin 'Tasdiqlanmagan' ro'yxatida bitimlar yo'q: " + nos);
         sahifada100(driver);
-        // avval sarlavhadagi "hammasini tanlash" (ommaviy tugma ko'pincha shundan keyin chiqadi)
-        WebElement hammasi = visible(driver, By.cssSelector("main thead input[type=checkbox]"));
-        if (hammasi != null) { realClick(driver, hammasi); sleep(500); }
-        WebElement ommaviy = visible(driver, By.xpath("//main//button[contains(normalize-space(.),'Ommaviy')]"));
-        if (ommaviy != null) System.out.println("8) Ommaviy tugma: '" + clean(ommaviy.getText()) + "'");
+        // FAQAT shu savdodan chiqqan bitimlar belgilanadi (boshqa testerlarniki tasdiqlanib ketmasin)
+        List<String> belgilandi = faqatShularniBelgila(nos, "Admin");
+        for (String no : nos) if (!belgilandi.contains(no)) System.out.println("8) DIQQAT: " + no + " 'Tasdiqlanmagan' da yo'q (treyder imzolamagan bo'lishi mumkin)");
+        WebElement ommaviy = waitFor(() -> visible(driver, By.xpath("//main//button[contains(normalize-space(.),'Ommaviy')]")), 5);
         if (ommaviy == null) {
             System.out.println("8) 'Ommaviy tasdiqlash' tugmasi yo'q — bittalab tasdiqlanadi");
             for (String no : nos) adminTasdiqla(base, no);
             return;
         }
-        for (String no : nos) {
-            WebElement row = rowWith(no);
-            if (row == null) { System.out.println("8) DIQQAT: " + no + " 'Tasdiqlanmagan' da yo'q (treyder imzolamagan bo'lishi mumkin)"); continue; }
-            WebElement cb = row.findElement(By.cssSelector("input[type=checkbox]"));
-            if (cb.isSelected()) continue; // "hammasini tanlash" allaqachon belgilagan
-            realClick(driver, cb);
-            sleep(300);
-            if (!cb.isSelected()) jsClick(driver, cb);
-        }
+        System.out.println("8) Ommaviy tugma: '" + clean(ommaviy.getText()) + "', belgilangan: " + belgilandi);
         jsClick(driver, ommaviy);
         sleep(1500);
         WebElement ok = waitFor(() -> lastVisible(driver, By.xpath("//*[@role='dialog' or contains(@class,'modal')]//button[normalize-space(.)='Tasdiqlash' or normalize-space(.)='Imzolash' or normalize-space(.)='Ha']")), 10);
@@ -94,6 +85,20 @@ public abstract class SavdoAsos extends BaseTest {
             for (String no : nos) if (rowWith(no) != null) qoldi.add(no);
         }
         Assert.assertTrue(qoldi.isEmpty(), "Ommaviy tasdiqlashdan keyin hali 'Tasdiqlanmagan'da: " + qoldi);
+        // ijobiy tekshiruv: har bir bitim "Tasdiqlangan" tabida turishi kerak
+        jsClick(driver, waitFor(() -> visible(driver, By.xpath("//main//button[starts-with(normalize-space(.),'Tasdiqlangan')]")), 20));
+        sahifada100(driver);
+        List<String> yoq = new ArrayList<>();
+        for (String no : nos) if (waitFor(() -> rowWith(no), 5) == null) yoq.add(no);
+        for (String no : new ArrayList<>(yoq)) { // sahifada ko'rinmasa - qidiruv orqali
+            WebElement q = visible(driver, By.cssSelector("main input[placeholder='Qidirish']"));
+            if (q == null) break;
+            q.sendKeys(Keys.CONTROL + "a");
+            q.sendKeys(no);
+            if (waitFor(() -> rowWith(no), 8) != null) yoq.remove(no);
+        }
+        Assert.assertTrue(yoq.isEmpty(), "Tasdiqlangandan keyin 'Tasdiqlangan' tabida topilmadi: " + yoq);
+        System.out.println("8) 'Tasdiqlangan' tabida: " + nos.size() + " ta bitim ✓");
         System.out.println("8) Admin ommaviy tasdiqladi: " + nos);
     }
 
@@ -121,6 +126,34 @@ public abstract class SavdoAsos extends BaseTest {
     }
 
     // ================================================================== yordamchilar
+
+    /**
+     * Jadvalda FAQAT berilgan bitimlarni belgilaydi va boshqa birorta qator belgilanmaganini tekshiradi (belgilangan bo'lsa test yiqiladi).
+     * Qaytaradi: topilib belgilangan bitimlar.
+     */
+    List<String> faqatShularniBelgila(List<String> nos, String who) {
+        List<String> ok = new ArrayList<>();
+        for (String no : nos) {
+            WebElement row = waitFor(() -> rowWith(no), 5);
+            if (row == null) continue;
+            WebElement cb = row.findElement(By.cssSelector("input[type=checkbox]"));
+            if (!cb.isSelected()) { realClick(driver, cb); sleep(200); }
+            if (!cb.isSelected()) { jsClick(driver, cb); sleep(200); }
+            if (cb.isSelected()) ok.add(no);
+        }
+        List<String> begona = new ArrayList<>();
+        int jami = 0;
+        for (WebElement r : driver.findElements(By.cssSelector("main tbody tr"))) {
+            List<WebElement> cb = r.findElements(By.cssSelector("input[type=checkbox]"));
+            if (cb.isEmpty() || !cb.get(0).isSelected()) continue;
+            jami++;
+            String tx = r.getText();
+            if (nos.stream().noneMatch(tx::contains)) begona.add(cut(tx, 80));
+        }
+        Assert.assertTrue(begona.isEmpty(), who + ": begona bitimlar ham belgilangan, imzolanmadi: " + begona);
+        System.out.println(who + ": faqat o'zimizning bitimlar belgilandi: " + ok.size() + " ta (jadvalda jami belgilangan " + jami + ")");
+        return ok;
+    }
 
     WebElement rowWith(String text) {
         for (WebElement r : driver.findElements(By.cssSelector("main tbody tr"))) try { if (r.getText().contains(text)) return r; } catch (Exception ignore) {}
@@ -164,7 +197,7 @@ public abstract class SavdoAsos extends BaseTest {
     void signDeal(String base, String who, String tab) {
         kim(who);
         openContracts(base, tab);
-        // filtr: "Bitim holati" = "Imzolanish kutilmoqda" -> sarlavhadagi "hammasini tanlash" -> "Ommaviy imzolash"
+        // filtr: "Bitim holati" = "Imzolanish kutilmoqda" -> faqat shu savdo bitimlari belgilanadi -> "Ommaviy imzolash"
         boolean filtr = holatFiltri("Imzolanish kutilmoqda");
         sahifada100(driver); // filtrdan keyin sayt sahifani yana 10 qatorga qaytaradi
         if (filtr && waitFor(() -> rowWith(dealNo), 8) == null) {
@@ -175,22 +208,9 @@ public abstract class SavdoAsos extends BaseTest {
             sahifada100(driver);
         }
         Assert.assertNotNull(waitFor(() -> rowWith(dealNo), 20), who + ": " + dealNo + " '" + tab + "' tabida yo'q");
-        WebElement hammasi = filtr ? visible(driver, By.cssSelector("main thead input[type=checkbox]")) : null;
-        if (hammasi != null) {
-            realClick(driver, hammasi);
-            sleep(400);
-            if (!hammasi.isSelected()) jsClick(driver, hammasi);
-        } else {
-            // zaxira: bittalab belgilash
-            for (String no : dealNos) {
-                WebElement row = rowWith(no);
-                Assert.assertNotNull(row, who + ": " + no + " '" + tab + "' tabida yo'q");
-                WebElement cb = row.findElement(By.cssSelector("input[type=checkbox]"));
-                realClick(driver, cb);
-                sleep(300);
-                if (!cb.isSelected()) jsClick(driver, cb);
-            }
-        }
+        // FAQAT shu savdodan chiqqan bitimlar imzolanadi (boshqa imzolanmagan bitimlarga tegilmaydi)
+        List<String> belgilandi = faqatShularniBelgila(dealNos, who);
+        Assert.assertEquals(belgilandi.size(), dealNos.size(), who + ": hamma bitim topilmadi. Belgilandi: " + belgilandi + ", kerak: " + dealNos);
         jsClick(driver, driver.findElement(By.xpath("//main//button[contains(normalize-space(.),'Ommaviy imzolash')]")));
         WebElement sign = waitFor(() -> lastVisible(driver, By.xpath("//*[@role='dialog' or contains(@class,'modal')]//button[normalize-space(.)='Imzolash']")), 15);
         Assert.assertNotNull(sign, who + ": imzolash oynasi ochilmadi");

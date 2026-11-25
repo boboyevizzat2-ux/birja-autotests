@@ -461,7 +461,7 @@ public class BitimHolatlariTest extends BaseTest {
         dialogEl(By.name("amount")).sendKeys(miqdor);
         // hujjat (xlsx) "Ro'yxatga qo'shish" dan OLDIN yuklanadi (aks holda "Kamida bitta fayl kiritilishi kerak")
         for (WebElement f : driver.findElements(By.cssSelector("input[type=file]")))
-            try { f.sendKeys(new File("src/test/resources/test-ybhr.xlsx").getAbsolutePath()); } catch (Exception ignore) {}
+            try { f.sendKeys(uz.ebirja.config.Config.resurs("test-ybhr.xlsx").getAbsolutePath()); } catch (Exception ignore) {}
         sleep(2000);
         // "Ro'yxatga qo'shish": haqiqiy bosish va ro'yxatga qator qo'shilganini tekshirish
         Object qoshildi = null;

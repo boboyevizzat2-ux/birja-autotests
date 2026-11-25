@@ -9,18 +9,14 @@ import org.testng.annotations.Test;
 import uz.ebirja.base.BaseTest;
 import uz.ebirja.base.Ui;
 import uz.ebirja.config.Config;
-import uz.ebirja.pages.LoginPage;
 
 import java.time.Duration;
 
 /** Treyder saytiga kirish testlari (faqat E-IMZO kaliti bilan). */
 public class TraderLoginTest extends BaseTest {
-    private LoginPage login;
-
     @BeforeMethod
     public void setUp() {
         openBrowser();
-        login = new LoginPage(driver);
     }
 
     @AfterMethod(alwaysRun = true)
@@ -34,12 +30,12 @@ public class TraderLoginTest extends BaseTest {
     }
 
     @Test(dataProvider = "treyderlar", description = "E-IMZO kaliti bilan treyder profiliga kiradi")
-    public void togriLoginBilanKirish(String kim) {
+    public void eimzoKalitiBilanKirish(String kim) {
         String jshshir = Config.get(kim + ".login");
         Ui.loginByKey(driver, Config.traderUrl(), jshshir, true);
         new WebDriverWait(driver, Duration.ofSeconds(30))
                 .until(ExpectedConditions.urlContains("/trader/profile"));
         new WebDriverWait(driver, Duration.ofSeconds(20))
-                .until(d -> login.isTextShown(jshshir));
+                .until(d -> d.findElement(org.openqa.selenium.By.tagName("body")).getText().contains(jshshir));
     }
 }

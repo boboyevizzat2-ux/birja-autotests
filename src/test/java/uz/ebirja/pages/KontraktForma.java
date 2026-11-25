@@ -59,7 +59,7 @@ public class KontraktForma {
 
     public void faylYuklash() {
         for (WebElement f : d.findElements(By.cssSelector("input[type=file]")))
-            f.sendKeys(new File("src/test/resources/test-hujjat.pdf").getAbsolutePath());
+            f.sendKeys(uz.ebirja.config.Config.resurs("test-hujjat.pdf").getAbsolutePath());
         sleep(2500);
     }
 

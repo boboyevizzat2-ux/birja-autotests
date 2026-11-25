@@ -34,7 +34,7 @@ public final class Eimzo {
     private static synchronized String srvCmd(String cmd) {
         try {
             if (srv == null || !srv.isAlive()) {
-                String script = new java.io.File("src/test/resources/eimzo-server.ps1").getAbsolutePath();
+                String script = Config.resurs("eimzo-server.ps1").getAbsolutePath();
                 srv = new ProcessBuilder("powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", script).redirectErrorStream(true).start();
                 srvIn = new java.io.BufferedWriter(new java.io.OutputStreamWriter(srv.getOutputStream()));
                 srvOut = new BufferedReader(new InputStreamReader(srv.getInputStream()));
@@ -46,10 +46,29 @@ public final class Eimzo {
             String line = srvOut.readLine();
             return line == null ? null : line.trim();
         } catch (Exception e) {
-            try { srv.destroy(); } catch (Exception ignore) {}
+            System.out.println("E-IMZO kuzatuvchisi xatosi (" + cmd + "): " + e);
+            try { if (srv != null) srv.destroy(); } catch (Exception ignore) {}
             srv = null;
             return null;
         }
+    }
+
+    /** Hozir oldinda turgan oyna E-IMZO nikimi. */
+    static boolean oldinda() { return "1".equals(srvCmd("fg")); }
+
+    /** E-IMZO oynasini oldinga chiqaradi; 3 soniyada chiqmasa xato beradi (parol begona oynaga yozilmasin). */
+    private static void oldingaChiqar(Robot robot) {
+        for (int i = 0; i < 10; i++) {
+            focusWindow();
+            robot.delay(300);
+            if (oldinda()) return;
+        }
+        throw new IllegalStateException("E-IMZO oynasini oldinga chiqarib bo'lmadi, parol yozilmadi");
+    }
+
+    /** Clipboarddagi parolni o'chiradi. */
+    private static void tozala() {
+        try { java.awt.Toolkit.getDefaultToolkit().getSystemClipboard().setContents(new java.awt.datatransfer.StringSelection(""), null); } catch (Exception e) { System.out.println("DIQQAT: clipboard tozalanmadi: " + e); }
     }
 
     /** E-IMZO oynasini parolsiz yopadi (WM_CLOSE). */
@@ -62,7 +81,7 @@ public final class Eimzo {
         String fast = srvCmd(focus ? "focus" : "title");
         if (fast != null) return fast;
         try {
-            String script = new java.io.File("src/test/resources/eimzo-window.ps1").getAbsolutePath();
+            String script = Config.resurs("eimzo-window.ps1").getAbsolutePath();
             ProcessBuilder pb = focus
                     ? new ProcessBuilder("powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", script, "focus")
                     : new ProcessBuilder("powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", script);
@@ -73,6 +92,7 @@ public final class Eimzo {
                 return line == null ? "" : line.trim();
             }
         } catch (Exception e) {
+            System.out.println("E-IMZO oynasini tekshirib bo'lmadi: " + e);
             return "";
         }
     }
@@ -97,11 +117,11 @@ public final class Eimzo {
             System.setProperty("java.awt.headless", "false");
             Robot robot = new Robot();
             robot.delay(300);
-            focusWindow(); // parol maydoni klaviaturani qabul qilishi uchun
-            robot.delay(300);
-            // parol clipboard orqali qo'yiladi (tez va harf tushib qolmaydi), keyin clipboard tozalanadi
+            oldingaChiqar(robot); // parol FAQAT E-IMZO oynasi oldinda bo'lsa yoziladi
+            // parol clipboard orqali qo'yiladi (tez, klaviatura tiliga bog'liq emas), keyin clipboard tozalanadi
             java.awt.datatransfer.Clipboard cb = java.awt.Toolkit.getDefaultToolkit().getSystemClipboard();
             cb.setContents(new java.awt.datatransfer.StringSelection(Config.get("eimzo.password")), null);
+            if (!oldinda()) throw new IllegalStateException("E-IMZO oynasi oldinda emas, parol yozilmadi");
             robot.keyPress(KeyEvent.VK_CONTROL);
             robot.keyPress(KeyEvent.VK_A);
             robot.keyRelease(KeyEvent.VK_A);
@@ -109,7 +129,8 @@ public final class Eimzo {
             robot.keyRelease(KeyEvent.VK_V);
             robot.keyRelease(KeyEvent.VK_CONTROL);
             robot.delay(150);
-            cb.setContents(new java.awt.datatransfer.StringSelection(""), null);
+            tozala();
+            if (!oldinda()) throw new IllegalStateException("Parol qo'yilayotganda E-IMZO oynasi oldindan ketdi, Enter bosilmadi");
             robot.keyPress(KeyEvent.VK_ENTER);
             robot.keyRelease(KeyEvent.VK_ENTER);
             System.out.println("E-IMZO: parol kiritildi (oyna: " + title + ")");
@@ -117,7 +138,9 @@ public final class Eimzo {
             for (int i = 0; i < 30 && !windowTitle().isEmpty(); i++) sleep(150);
             return true;
         } catch (Exception e) {
-            throw new RuntimeException("E-IMZO parolini kiritib bo'lmadi", e);
+            throw new RuntimeException("E-IMZO parolini kiritib bo'lmadi: " + e.getMessage(), e);
+        } finally {
+            tozala();
         }
     }
 
@@ -133,7 +156,6 @@ public final class Eimzo {
         long end = System.currentTimeMillis() + timeoutSec * 1000L;
         while (System.currentTimeMillis() < end) {
             if (!windowTitle().isEmpty()) {
-                String script = new java.io.File("src/test/resources/eimzo-window.ps1").getAbsolutePath();
                 for (int i = 0; i < 5 && !windowTitle().isEmpty(); i++) {
                     closeWindow();
                     sleep(300);
@@ -142,31 +164,6 @@ public final class Eimzo {
                 return true;
             }
             sleep(200);
-        }
-        return false;
-    }
-
-    /**
-     * Salbiy testlar uchun: E-IMZO oynasi timeoutSec ichida chiqsa, parol YOZMASDAN ESC bilan yopadi.
-     * @return true - oyna chiqdi (ya'ni sayt formani o'tkazib yubordi); false - oyna chiqmadi
-     */
-    public static boolean cancelIfShown(int timeoutSec) {
-        long end = System.currentTimeMillis() + timeoutSec * 1000L;
-        while (System.currentTimeMillis() < end) {
-            if (!windowTitle().isEmpty()) {
-                try {
-                    System.setProperty("java.awt.headless", "false");
-                    Robot robot = new Robot();
-                    focusWindow();
-                    robot.delay(400);
-                    robot.keyPress(KeyEvent.VK_ESCAPE);
-                    robot.keyRelease(KeyEvent.VK_ESCAPE);
-                    for (int i = 0; i < 10 && !windowTitle().isEmpty(); i++) sleep(300);
-                } catch (Exception ignore) {}
-                System.out.println("E-IMZO: oyna chiqdi va parolsiz yopildi");
-                return true;
-            }
-            sleep(300);
         }
         return false;
     }

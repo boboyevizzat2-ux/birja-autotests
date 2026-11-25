@@ -14,6 +14,12 @@ public static class EimzoSrv {
     [DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern int GetWindowText(IntPtr h, StringBuilder s, int n);
     [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr h);
     [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr h, int cmd);
+    [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
+    [DllImport("user32.dll")] public static extern void keybd_event(byte vk, byte scan, uint flags, UIntPtr extra);
+    public static bool IsForeground(uint[] pids) {
+        uint pid; GetWindowThreadProcessId(GetForegroundWindow(), out pid);
+        return Array.IndexOf(pids, pid) >= 0;
+    }
     [DllImport("user32.dll")] public static extern bool PostMessage(IntPtr h, uint msg, IntPtr w, IntPtr l);
     public static string Find(uint[] pids, bool focus, bool close) {
         string found = null;
@@ -24,7 +30,7 @@ public static class EimzoSrv {
             string t = sb.ToString();
             if (t.Length == 0) return true;
             found = t;
-            if (focus) { ShowWindow(h, 5); SetForegroundWindow(h); }
+            if (focus) { ShowWindow(h, 5); keybd_event(0xFC, 0, 0, UIntPtr.Zero); keybd_event(0xFC, 0, 2, UIntPtr.Zero); SetForegroundWindow(h); }
             if (close) PostMessage(h, 0x0010, IntPtr.Zero, IntPtr.Zero);
             return false;
         }, IntPtr.Zero);
@@ -42,6 +48,8 @@ while ($true) {
         $pids = @(Get-Process E-IMZO, javaw -ErrorAction SilentlyContinue | Where-Object { $_.Path -like '*E-IMZO*' } | ForEach-Object { [uint32]$_.Id })
         $last = [DateTime]::Now
     }
+    # fg: ayni paytda oldinda turgan oyna E-IMZO nikimi (1/0)
+    if ($cmd -eq 'fg') { $ok = ($pids.Count -gt 0) -and [EimzoSrv]::IsForeground([uint32[]]$pids); [Console]::Out.WriteLine($(if ($ok) { '1' } else { '0' })); [Console]::Out.Flush(); continue }
     $t = $null
     if ($pids.Count -gt 0) { $t = [EimzoSrv]::Find([uint32[]]$pids, ($cmd -eq 'focus'), ($cmd -eq 'close')) }
     if ($t) { [Console]::Out.WriteLine($t) } else { [Console]::Out.WriteLine('') }

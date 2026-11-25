@@ -66,7 +66,7 @@ public class KontraktNegativTest extends BaseTest {
         long oldin = forma.eimzoUrinishlari();
         forma.yuborishniBosish();
         waitFor(() -> forma.eimzoUrinishlari() > oldin ? Boolean.TRUE : null, 4);
-        boolean oyna = Eimzo.cancelIfShown(1); // to'siq ishlamagan bo'lsa ham parol yozilmaydi
+        boolean oyna = Eimzo.closeIfShown(1); // to'siq ishlamagan bo'lsa ham parol yozilmaydi
         long urinish = forma.eimzoUrinishlari() - oldin;
         if (urinish > 0) toldirilgan = false; // forma imzo kutish holatida qoldi -> keyingi holatda qayta ochiladi
         List<String> x = forma.xatolar();

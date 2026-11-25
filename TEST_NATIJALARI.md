@@ -1,8 +1,8 @@
 # eBirja avtotestlari: ro'yxat va so'nggi natijalar
 
-Oxirgi yangilanish: 25.11.2026, 11:30. Testlar hozir **ms** da ishlaydi: `test-ms-app.ebirja.uz` (treyder), `test-ms-head.ebirja.uz` (admin), E-IMZO kaliti bilan. Eski saytga (`test-app` / `test-head`) o'tish uchun `login.properties` dagi `trader.url` va `admin.url` almashtiriladi, kod o'zgarmaydi.
+Oxirgi yangilanish: 25.11.2026, 12:45. Testlar hozir **ms** da ishlaydi: `test-ms-app.ebirja.uz` (treyder), `test-ms-head.ebirja.uz` (admin), E-IMZO kaliti bilan. Eski saytga (`test-app` / `test-head`) o'tish uchun `login.properties` dagi `trader.url` va `admin.url` almashtiriladi, kod o'zgarmaydi.
 
-**Joriy holat:** oxirgi run (25.11, 11:23, ms) oxirigacha bormadi: moderator (admin1) kira olmadi, server `400 /api/erp, state 1259` qaytardi. Oxirigacha borgan oxirgi run 25.11, 11:01 (pastdagi jadval).
+**Joriy holat:** oxirgi to'liq run 25.11, 12:08 (ms): 16:38, **30 o'tdi, 2 xato, 1 o'tkazildi**. Ikkala xato sayt tomonda (5-bo'lim: 1, 2). Undan keyin «faqat o'z bitimlarini imzolash» qo'shildi va faqat auksion yurgizildi (12:25): 9 o'tdi, 1 xato (5-bo'lim: 1). Shu oxirgi o'zgarish bilan to'liq jarayon boshidan oxirigacha hali yurgizilmagan.
 
 ## Qanday ishga tushiriladi
 
@@ -36,6 +36,13 @@ Har run'da `operatsiyalarniKorish` ataylab o'tkazib yuboriladi (faqat qo'lda, ma
 | 25.11, 10:24 | ms | 14:59 | 27 / 2 / 2 | 1-taklif savdo ochilmasdan berilgan (test xatosi); 7-stsenariyga bitim yetmagan |
 | **25.11, 11:01** | **ms** | **17:31** | **29 / 3 / 1** | Uchala xato sayt tomonda (5-bo'lim: 1, 2, 4) |
 | 25.11, 11:23 | ms | 2:54 | 14 / 1 / 18 | admin1 kira olmadi (1259), auksion boshlanmadi |
+| 25.11, 11:53 | ms | 3:01 | 13 / 1 / 19 | Test xatosi: yangi qo'shilgan kontrakt tekshiruvi noto'g'ri ustunni qidirgan (tuzatildi) |
+| 25.11, 11:57 | ms | 2:31 | 3 / 1 / 6 | Faqat auksion. Test xatosi: savdoga chiqarish jadvalida qator topilmadi (tuzatildi) |
+| 25.11, 12:00 | ms | 7:37 | 9 / 1 / 0 | Faqat auksion, kontrakt 140. Xato: 5-bo'lim, 1 |
+| **25.11, 12:08** | **ms** | **16:38** | **30 / 2 / 1** | To'liq, kontrakt 141. Xatolar: 5-bo'lim, 1 va 2 |
+| 25.11, 12:25 | ms | 7:36 | 9 / 1 / 0 | Faqat auksion, kontrakt 142, faqat o'z bitimlari imzolandi. Xato: 5-bo'lim, 1 |
+
+**Muhim tuzatish:** 12:00 dan oldingi run'larda test yangi kontrakt yaratib tasdiqlagan, lekin savdoga jadvaldagi birinchi qatorni, ya'ni **eski 80-kontraktni** chiqargan. Demak, «kontrakt → tasdiqlash → savdo» zanjiri o'sha run'larda to'liq sinalmagan. 12:00 dan boshlab zanjir aniq kontrakt bo'yicha: yuborilgan vaqt (soniyasigacha) + mahsulot + sotuvchi STIR → moderatordagi ID → savdo raqami → savdo va bitimlar faqat shu raqamda (ID 166→140, 167→141, 168→142).
 
 Avvalgi tahrirda «30 testdan 29 tasi» va «30/30» deb yozilgan edi, bu noto'g'ri: o'tkazib yuborilgan test o'tgan deb sanalgan.
 
@@ -69,7 +76,7 @@ Natija: **13 tadan 13 tasi o'tdi**. Imzo so'rovi brauzerda to'sib qo'yiladi, hec
 | Bo'sh forma | ✅ rad etiladi: «Majburiy maydon» |
 | Hujjat yuklanmagan | ✅ rad etiladi: «kamida 1 ta fayl kiritilishi kerak» |
 
-## 2. Oddiy auksion (`AuksionOddiyTest`), 25.11, 11:01, ms
+## 2. Oddiy auksion (`AuksionOddiyTest`), 25.11, 12:08, ms
 
 | # | Qadam | Holat |
 |---|---|---|
@@ -78,9 +85,11 @@ Natija: **13 tadan 13 tasi o'tdi**. Imzo so'rovi brauzerda to'sib qo'yiladi, hec
 | 3 | Admin savdo vaqtini o'zi yaratadi (e'lon 1 daq, savdo 3 daq) | ✅ |
 | 4 | 100 lot savdoga; salbiy: **-5 lot** (minus kiritilmaydi), **0 lot** («Grafik lot yuborilishi kerak») | ✅ |
 | 5 | Treyder 2 TESTIVEST nomidan 1 lotdan 9 ta taklif, bittasi 🗑 bilan o'chiriladi | ✅ o'chirilganidan bitim chiqmadi |
-| 6 | 8 ta kontrakt (B26000382–389) | ✅ |
-| 7 | 101 lotga taklif (100 lot, 8 tasi sotilgan) | ✅ qolgan **92 lotni** oldi (B26000390) |
-| 8 | Ikkala treyder ommaviy imzolaydi, admin ommaviy tasdiqlaydi | ✅ |
+| 6 | 8 ta kontrakt (B26000400–407) | ✅ |
+| 7 | 101 lotga taklif (100 lot, 8 tasi sotilgan) | ✅ qolgan **92 lotni** oldi (B26000408) |
+| 8 | Ikkala treyder va admin **faqat shu savdodan chiqqan bitimlarni** belgilab imzolaydi/tasdiqlaydi | ✅ 12:25 dagi run'da sinaldi: uchala tomonda 9 tadan 9 tasi (B26000412–420), begona qator yo'q; «Tasdiqlangan» tabida 9 ta |
+
+Begona bitim belgilanib qolsa, test imzolamasdan yiqiladi. Jadvalda o'sha paytda begona bitim bor-yo'qligi logga yozilmagan, shuning uchun bu himoya begona bitim bilan sinalgan deb bo'lmaydi.
 
 **Savatcha** (kartochkadagi bolg'acha yonidagi belgi), savdo ichida o'qiladi: yashil — yutgan (8), sariq — qisman (101 lot), qizil — yutqazgan (101 dan keyingi 1 lot). ✅
 
@@ -97,27 +106,27 @@ Natija: **13 tadan 13 tasi o'tdi**. Imzo so'rovi brauzerda to'sib qo'yiladi, hec
 | **999 999 999 lot** (mablag'dan ancha katta) | ❌ **qabul qilindi** |
 | Savdo tugagandan keyin | ❓ aniqlanmagan: oyna yopilib ketadi. Bitim chiqmadi |
 
-## 3. Bitim holatlari (`BitimHolatlariTest`), 25.11, 11:01, ms
+## 3. Bitim holatlari (`BitimHolatlariTest`), 25.11, 12:08, ms
 
 Har bir stsenariy o'z bitimida, 8-bitimga tegilmaydi. **Xaridor hisobi ichiga kiriladi** (HKKP → Balans → STIR): bitim bo'yicha har bir operatsiya (kimdan, kimga, summa, maqsad) kutilgani bilan aynan solishtiriladi. Bekor qilishda barcha va erkin mablag' farqi ham tekshiriladi. Sotuvchi bo'yicha faqat tarixdagi jarima va zakalat tekshiriladi, balans raqamlari hali yo'q.
 
 | # | Stsenariy | Bitim | Natija | Tekshirilgani |
 |---|---|---|---|---|
-| 1 | To'lov → YBHR to'liq | B26000382 | ✅ | Erkin mablag' −900 000; hisobda 6 operatsiya mos; «Bajarildi» |
-| 2 | To'lov → YBHR yarmi → kelishuv | B26000383 | ✅ | Erkin +500 000; 8 operatsiya mos; «Qisman bajarildi» |
-| 3 | Kelishuv bilan bekor qilish | B26000384 | ⚠️ **tekshirilmadi** | Sahifa 502 Bad Gateway berdi. Oldingi ms run'ida (10:24) o'tgan |
-| 4 | Xaridor jarimasi | B26000385 | ✅ | 100 000 TESTIVEST → sotuvchi; barcha −100 000 |
-| 5 | Sotuvchi jarimasi | B26000386 | ✅ | 100 000 sotuvchi → TESTIVEST; barcha +100 000, erkin +200 000 |
-| 6 | To'lov muddatini uzaytirish | B26000387 | ✅ | 30.11 → 02.12; rad: o'zgarmadi; pul harakati yo'q |
-| 7 | Yetkazib berish muddatini uzaytirish | B26000388 | ✅ | 09.12 → 11.12; rad: o'zgarmadi |
-| 8 | Tegilmagan bitim | B26000389 | ✅ | «To'lov kutilmoqda», hisobda faqat 4 ta boshlang'ich operatsiya |
-| 9 | Shartnoma va to'lov chekini yuklab olish | B26000382 | ❌ | Server 400 (5-bo'lim) |
+| 1 | To'lov → YBHR to'liq | B26000400 | ✅ | Erkin mablag' −900 000; hisobda 6 operatsiya mos; «Bajarildi» |
+| 2 | To'lov → YBHR yarmi → kelishuv | B26000401 | ✅ | Erkin +500 000; 8 operatsiya mos; «Qisman bajarildi» |
+| 3 | Kelishuv bilan bekor qilish | B26000402 | ✅ | Erkin +100 000, barcha o'zgarmadi; 5 operatsiya mos; jarima yo'q |
+| 4 | Xaridor jarimasi | B26000403 | ✅ | 100 000 TESTIVEST → sotuvchi; barcha −100 000 |
+| 5 | Sotuvchi jarimasi | B26000404 | ✅ | 100 000 sotuvchi → TESTIVEST; barcha +100 000, erkin +200 000 |
+| 6 | To'lov muddatini uzaytirish | B26000405 | ✅ | 30.11 → 02.12; rad: o'zgarmadi; pul harakati yo'q |
+| 7 | Yetkazib berish muddatini uzaytirish | B26000406 | ✅ | 09.12 → 11.12; rad: o'zgarmadi |
+| 8 | Tegilmagan bitim | B26000407 | ✅ | «To'lov kutilmoqda», hisobda faqat 4 ta boshlang'ich operatsiya |
+| 9 | Shartnoma va to'lov chekini yuklab olish | B26000400 | ❌ | Server 400 (5-bo'lim) |
 
-Yuklash endi faqat bitta to'langan kontraktda, bir marta bajariladi (11:01 dan keyingi o'zgarish). Faylning butun PDF ekani tekshiriladi, ichidagi matn tekshirilmaydi.
+Yuklash faqat bitta to'langan kontraktda, bir marta bajariladi. Faylning butun PDF ekani tekshiriladi, ichidagi matn tekshirilmaydi.
 
 YBHR tartibi: shartnoma raqami → faktura raqami, sana, miqdor → **xlsx hujjat yuklanadi** → «Ro'yxatga qo'shish» → «Yuborish» → xaridor YBHR sahifasida tasdiqlaydi.
 
-**11:01 dan keyin qo'shilgan, run'da hali sinalmagan:** 502 bo'lsa sahifani bir marta qayta ochish, birinchi taklifni savdo ochilgach 3,5 s kutib berish, yuklashni bir marta qilish.
+11:01 dan keyin qo'shilganlardan 12:08 da sinaldi: birinchi taklifni savdo ochilgach 3,5 s kutib berish, yuklashni bir marta qilish. 502 bo'lsa sahifani qayta ochish sinalmagan, chunki 502 qayta chiqmadi.
 
 ## 4. Qarama-qarshi auksion (`QaramaQarshiAuksionTest`) — ishlanmoqda
 
@@ -149,8 +158,8 @@ Shundan keyingi o'zgarishlar (25.11 da sinaladi): balans HKKP dan o'qiladi (har 
 | # | Joy | Nima | Holat |
 |---|---|---|---|
 | 1 | Auksion taklifi (ms) | **999 999 999 lotga taklif qabul qilinadi** (10^15 so'm, hisobda ~9,3 mlrd), savatchada «Talab 1 000 000 107/100» | ❌ Sayt xatosi |
-| 2 | Shartnoma va to'lov cheki (ms) | `GET contract/create-pdf/{id}` va `contract/create-payment-pdf/{id}` → `400, state 1259, "Unexpected exception"`. Beqaror: B26000363 shartnomasi yuklanadi, cheki yo'q; B26000374 cheki bir marta yuklanib, keyin rad etildi; B26000382, 389 umuman yuklanmadi | ❌ Sayt xatosi |
-| 3 | Moderator (admin1) kirishi (ms) | `400 /api/erp, state 1259`. Parol to'g'ri. 25.11: ~10:26 kirdi, 10:45 va ~10:48 kirmadi, ~10:59 va 11:03 kirdi, 11:25 kirmadi | ❌ Sayt xatosi, beqaror |
+| 2 | Shartnoma va to'lov cheki (ms) | `GET contract/create-pdf/{id}` va `contract/create-payment-pdf/{id}` → `400, state 1259, "Unexpected exception"`. Beqaror: B26000363 shartnomasi yuklanadi, cheki yo'q; B26000374 cheki bir marta yuklanib, keyin rad etildi; B26000382, 389 va 400 umuman yuklanmadi | ❌ Sayt xatosi |
+| 3 | Moderator (admin1) kirishi (ms) | `400 /api/erp, state 1259`. Parol to'g'ri. 25.11: ~10:26 kirdi, 10:45 va ~10:48 kirmadi, ~10:59 va 11:03 kirdi, 11:25 kirmadi, ~11:58 dan keyingi 4 ta run'da kirdi | ❌ Sayt xatosi, beqaror |
 | 4 | Shartnomalar sahifasi (ms) | 11:14 atrofida bir marta 502 Bad Gateway | ❌ Sayt xatosi |
 | 5 | Qarama-qarshi auksion kontrakti (moderator, app) | Hujjat yuklanmasa ham kontrakt yaratiladi (treyder formasida rad etiladi) | ❌ Sayt xatosi |
 | 6 | Birja komissiyasi | Sayt har tomondan **800 so'm = 0,08%** oladi (1 000 000 dan). Foydalanuvchi «0.008» deb yozgan, 0,08% deb tushunilgan | ✅ |
@@ -158,9 +167,24 @@ Shundan keyingi o'zgarishlar (25.11 da sinaladi): balans HKKP dan o'qiladi (har 
 
 Qoidalar (xato emas): mavjuddan ko'p lotga (101) taklif qabul qilinadi va qolgan lot bilan qisman bajariladi; past narxda taklif berish mumkin, lekin savatchada ko'rinmaydi va kontrakt tuzilmaydi.
 
-## 6. Keyingi qadamlar
+## 6. Audit (TODO.md) natijasi
 
-1. admin1 kirishi tuzalgach oddiy auksionni ms da boshidan oxirigacha yurgizish; 3-stsenariyni tasdiqlash.
+| Band | Holat |
+|---|---|
+| A1, A2 | ✅ `editRow` yo'q (savdo qatori o'chirilib, yangidan yaratiladi); kontrakt treyderning «Listingga yuborilgan» ro'yxatida tekshiriladi |
+| A3, A4, A5, A6 | ✅ Yaratilgan savdo qatori, «Muvaffaqiyatli» xabari, takliflar soni va «Tasdiqlangan» tabi ijobiy tekshiriladi |
+| A7 | ✅ Boshqacha usulda: belgi ro'yxatlarda ko'rinmaydi, shuning uchun kontrakt vaqti + mahsulot + STIR bo'yicha topiladi |
+| A8, A9 | ✅ Parol faqat E-IMZO oynasi oldinda bo'lsa, clipboard orqali yoziladi |
+| A10 | ⚠️ Qisman: kutishlardagi kutilmagan xatolar logga yoziladi, lekin kodda `catch (Exception ignore)` lar hali bor |
+| A11, A12, A13, A14 | ✅ Toshkent vaqti; `probe/` va `LoginPage` o'chirildi; `pom.xml` tozalandi |
+| B1, B2, B3 | ✅ `Config` tartibi, `-Denv`, classpath |
+| B4, B5 | ❌ Qilinmadi (Maven wrapper, `smoke`/`e2e` guruhlari) |
+| B6, B7, B8 | Boshqa jamoalarga so'rov, kodga bog'liq emas |
+| C, D, E | Playwright (TypeScript) ga ko'chish, boshlanmagan |
+
+## 7. Keyingi qadamlar
+
+1. To'liq jarayonni oxirgi o'zgarish bilan yana bir marta yurgizish. Playwright + TypeScript PoC (Node.js o'rnatilgach).
 2. Savdo tugagandan keyingi taklifni aniq tekshirish; sotuvchi balans raqamlari.
 3. Qarama-qarshi auksion: to'liq run va qo'shimcha salbiy holatlar (mijozsiz / bo'sh / kasr / harfli qiymatlar, mablag'dan katta xarid, «Bozor narxida» xarid, ikki marta bosish, sessiya tugagach buyurtma, bekor qilingan buyurtma, kontraktni rad etish, noto'g'ri fayl turi, muddatlar 0, bitta tomon imzolagan bitim, pul bloklanishi va qaytishi).
 4. Maxsus savdolar: Spirt, Oltin (Tilla), Kumush, Subsidiya — har biri alohida run.

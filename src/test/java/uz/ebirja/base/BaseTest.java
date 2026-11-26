@@ -14,6 +14,19 @@ public abstract class BaseTest {
     // birja vaqti: kompyuter soat mintaqasi boshqacha bo'lsa ham savdo va bitim vaqtlari Toshkent bo'yicha hisoblanadi
     static { java.util.TimeZone.setDefault(java.util.TimeZone.getTimeZone("Asia/Tashkent")); }
 
+    // har bir log qatori oldiga vaqt (HH:mm:ss) qo'yiladi: qaysi qadam qancha vaqt olgani logdan ko'rinadi
+    static {
+        java.io.PrintStream asl = System.out;
+        if (!(asl instanceof VaqtliChiqish)) System.setOut(new VaqtliChiqish(asl));
+    }
+
+    static final class VaqtliChiqish extends java.io.PrintStream {
+        private final java.time.format.DateTimeFormatter f = java.time.format.DateTimeFormatter.ofPattern("HH:mm:ss");
+        VaqtliChiqish(java.io.PrintStream asl) { super(asl, true); }
+        @Override public void println(String x) { super.println("[" + java.time.LocalTime.now().format(f) + "] " + x); }
+        @Override public void println(Object x) { println(String.valueOf(x)); }
+    }
+
     protected WebDriver driver;
 
     /** Brauzer sozlamalari: E-IMZO ruxsatlari eslab qolinadi. */

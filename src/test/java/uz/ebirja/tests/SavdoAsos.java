@@ -69,18 +69,18 @@ public abstract class SavdoAsos extends BaseTest {
         }
         System.out.println("8) Ommaviy tugma: '" + clean(ommaviy.getText()) + "', belgilangan: " + belgilandi);
         jsClick(driver, ommaviy);
-        sleep(1500);
         WebElement ok = waitFor(() -> lastVisible(driver, By.xpath("//*[@role='dialog' or contains(@class,'modal')]//button[normalize-space(.)='Tasdiqlash' or normalize-space(.)='Imzolash' or normalize-space(.)='Ha']")), 10);
         if (ok != null) jsClick(driver, ok);
         Eimzo.typePassword(10);
-        sleep(1500);
+        waitFor(() -> toasts(driver).stream().anyMatch(x -> !x.isBlank() && !x.startsWith("Loading")) ? Boolean.TRUE : null, 8);
         System.out.println("8) Ommaviy tasdiqlash xabarlari: " + toasts(driver));
         // tekshiruv: bitimlar "Tasdiqlanmagan" dan chiqib ketishini kutamiz (ko'pi bilan ~30 s)
         List<String> qoldi = new ArrayList<>(nos);
         for (int urinish = 0; urinish < 6 && !qoldi.isEmpty(); urinish++) {
             driver.navigate().refresh();
             jsClick(driver, waitFor(() -> visible(driver, By.xpath("//main//button[starts-with(normalize-space(.),'Tasdiqlanmagan')]")), 20));
-            sleep(2500);
+            jadvalKut(driver);
+            if (urinish > 0) sleep(1500);
             qoldi.clear();
             for (String no : nos) if (rowWith(no) != null) qoldi.add(no);
         }
@@ -155,10 +155,7 @@ public abstract class SavdoAsos extends BaseTest {
         return ok;
     }
 
-    WebElement rowWith(String text) {
-        for (WebElement r : driver.findElements(By.cssSelector("main tbody tr"))) try { if (r.getText().contains(text)) return r; } catch (Exception ignore) {}
-        return null;
-    }
+    WebElement rowWith(String text) { return uz.ebirja.pages.Jadval.qator(driver, text); }
 
     void openContracts(String base, String tab) {
         // xaridor mijoz (masalan TESTIVEST) nomidan sotib olgan bo'lsa, bitim treyderda "Mijozimning shartnomalari" da turadi
@@ -192,7 +189,7 @@ public abstract class SavdoAsos extends BaseTest {
         return false;
     }
 
-    static String norm(String s) { return s == null ? "" : s.replaceAll("[‘’`ʼ]", "'"); }
+    static String norm(String s) { return uz.ebirja.pages.Jadval.norm(s); }
 
     void signDeal(String base, String who, String tab) {
         kim(who);

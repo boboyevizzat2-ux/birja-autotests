@@ -108,7 +108,7 @@ public final class Ui {
         sleep(500);
         waitFor(() -> {
             List<WebElement> rows = d.findElements(By.cssSelector("main tbody tr"));
-            if (rows.isEmpty()) return d.findElement(By.tagName("main")).getText().contains("mavjud emas") ? Boolean.TRUE : null;
+            if (rows.isEmpty()) { String t = d.findElement(By.tagName("main")).getText(); return t.contains("mavjud emas") || t.contains("topilmadi") ? Boolean.TRUE : null; }
             for (WebElement r : rows) try { if (!r.getText().contains(matn)) return null; } catch (Exception e) { return null; }
             return Boolean.TRUE;
         }, 15);
@@ -116,15 +116,28 @@ public final class Ui {
 
     /** Jadval pastidagi "Ko'rsatish" (10/20/50/100) ro'yxatidan 100 ni tanlaydi (bo'lsa). */
     public static void sahifada100(WebDriver d) {
+        By qatorlar = By.cssSelector("main tbody tr");
+        // jadval yuklanguncha (yoki "mavjud emas")
+        waitFor(() -> !d.findElements(qatorlar).isEmpty() || d.findElement(By.tagName("main")).getText().contains("mavjud emas") ? Boolean.TRUE : null, 10);
+        int oldin = d.findElements(qatorlar).size();
+        if (oldin < 10) return; // hammasi bitta sahifaga sig'ib turibdi
         for (WebElement in : d.findElements(By.cssSelector("main input[id^='react-select']"))) {
             try {
                 Object txt = ((JavascriptExecutor) d).executeScript("let c=arguments[0].closest('[class*=\"-container\"]'); return c? c.innerText.trim() : '';", in);
                 if (!"10".equals(String.valueOf(txt))) continue;
                 ((JavascriptExecutor) d).executeScript("arguments[0].scrollIntoView({block:'center'}); arguments[0].focus();", in);
                 in.sendKeys(Keys.ARROW_DOWN);
-                sleep(1000);
-                for (WebElement op : d.findElements(By.cssSelector("[id*='-option-']")))
-                    if (op.isDisplayed() && op.getText().trim().equals("100")) { jsClick(d, op); sleep(4000); return; }
+                WebElement op = waitFor(() -> {
+                    for (WebElement o : d.findElements(By.cssSelector("[id*='-option-']"))) if (o.isDisplayed() && o.getText().trim().equals("100")) return o;
+                    return null;
+                }, 3);
+                if (op != null) {
+                    jsClick(d, op);
+                    // qatorlar 10 dan ko'payguncha (jami roppa-rosa 10 ta bo'lsa 4 s dan keyin davom etadi)
+                    waitFor(() -> d.findElements(qatorlar).size() > oldin ? Boolean.TRUE : null, 4);
+                    sleep(300);
+                    return;
+                }
                 in.sendKeys(Keys.ESCAPE);
             } catch (Exception ignore) {}
         }

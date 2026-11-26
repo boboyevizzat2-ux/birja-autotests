@@ -68,6 +68,7 @@ public abstract class AuctionFlowTest extends SavdoAsos {
 
     // qadamlar orasida uzatiladigan ma'lumotlar
     String yuborilganVaqt;      // yangi kontrakt yuborilgan vaqt, soniyasigacha (treyder ro'yxatidan) - moderatorda shu bo'yicha topiladi
+    String radVaqt, radId;      // ikkinchi kontrakt: moderator uni 1-rolda rad etadi
     String contractId;          // yangi kontrakt ID si (moderator ro'yxatidan)
     String savdoRaqami;         // shu kontraktning savdo raqami ("Kontrakt raqam") - savdo va bitimlar faqat shunda bo'lishi kerak
     LocalDateTime elonStart, savdoStart, savdoEnd;
@@ -79,32 +80,36 @@ public abstract class AuctionFlowTest extends SavdoAsos {
 
 
     // ------------------------------------------------------------------ 1
-    @Test(priority = 1, description = "Treyder 1 auksion kontraktini yaratadi va E-IMZO bilan yuboradi")
+    @Test(priority = 1, description = "Treyder 1 ikkita auksion kontrakti yaratadi va E-IMZO bilan yuboradi (biri rad etiladi, biri tasdiqlanadi)")
     public void step1_kontraktYaratish() {
         SAVDO_ISHLADI = true;
         String base = Config.traderUrl();
         kim("trader1");
+        radVaqt = kontraktYubor(base, "R");
+        yuborilganVaqt = kontraktYubor(base, "", radVaqt);
+        System.out.println("1) Ikkita kontrakt yuborildi: rad etiladigani " + radVaqt + ", tasdiqlanadigani " + yuborilganVaqt);
+    }
+
+    /** Bitta kontrakt yaratadi, yuboradi va uning aniq yuborilgan vaqtini qaytaradi. */
+    String kontraktYubor(String base, String qoshimcha, String... oldingilar) {
         LocalDateTime boshlandi = LocalDateTime.now();
-        String belgi = "AT-" + boshlandi.format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss"));
+        String belgi = "AT-" + boshlandi.format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss")) + qoshimcha;
         KontraktForma forma = new KontraktForma(driver, PRODUCT).ochish(base).togriToldirish(true);
         if (visible(driver, By.name("specialConditionUz")) != null) forma.set("specialConditionUz", belgi);
         forma.yuborishniBosish();
         Eimzo.typePassword();
         Object ok = waitFor(() -> driver.getCurrentUrl().contains("/create") ? null : Boolean.TRUE, 60);
         Assert.assertNotNull(ok, "Kontrakt yuborilmadi. Xabarlar: " + toasts(driver));
-        yuborilganVaqt = yuborilganKontraktVaqti(base, boshlandi);
-        System.out.println("1) Kontrakt yuborildi: " + PRODUCT + ", belgi " + belgi + ", vaqti " + yuborilganVaqt + " (treyder -> Listingga yuborilgan)");
+        String vaqt = yuborilganKontraktVaqti(base, boshlandi, oldingilar);
+        System.out.println("1) Kontrakt yuborildi: " + PRODUCT + ", belgi " + belgi + ", vaqti " + vaqt + " (treyder -> Listingga yuborilgan)");
+        return vaqt;
     }
 
     /** Jadvaldagi ustun qiymati (sarlavha nomi bo'yicha, tartib raqamiga bog'lanmaydi). */
-    String ustun(WebElement row, String sarlavha) {
-        List<WebElement> th = driver.findElements(By.cssSelector("main thead th")), td = row.findElements(By.cssSelector("td"));
-        for (int i = 0; i < th.size() && i < td.size(); i++) if (clean(th.get(i).getText()).equalsIgnoreCase(sarlavha)) return clean(td.get(i).getText());
-        return "";
-    }
+    String ustun(WebElement row, String sarlavha) { return uz.ebirja.pages.Jadval.ustun(driver, row, sarlavha); }
 
     /** Treyder -> Listing -> "Listingga yuborilgan": shu run'da yuborilgan kontraktning aniq vaqti. Topilmasa test yiqiladi. */
-    String yuborilganKontraktVaqti(String base, LocalDateTime boshlandi) {
+    String yuborilganKontraktVaqti(String base, LocalDateTime boshlandi, String... bundanBoshqa) {
         driver.get(base + "/uz/trader/listing/sales");
         WebElement tab = waitFor(() -> visible(driver, By.xpath("//main//*[starts-with(normalize-space(.),'Listingga yuborilgan')][self::button or @role='tab' or not(*)]")), 20);
         Assert.assertNotNull(tab, "'Listingga yuborilgan' tabi yo'q");
@@ -114,7 +119,8 @@ public abstract class AuctionFlowTest extends SavdoAsos {
                 String x = ustun(r, "Yuborilgan sana");
                 if (!r.getText().contains(PRODUCT) || !x.matches("\\d{2}/\\d{2}/\\d{4} [|] \\d{2}:\\d{2}:\\d{2}")) continue;
                 LocalDateTime t = LocalDateTime.parse(x.replace(" | ", " "), DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss"));
-                if (!t.isBefore(boshlandi.minusSeconds(30))) return x; // oldingi run kontraktlari olinmaydi
+                // oldingi run kontraktlari va shu run'dagi boshqa kontrakt olinmaydi
+                if (!t.isBefore(boshlandi.minusSeconds(30)) && !Arrays.asList(bundanBoshqa).contains(x)) return x;
             }
             return null;
         }, 30);
@@ -123,17 +129,17 @@ public abstract class AuctionFlowTest extends SavdoAsos {
     }
 
     /** Moderator -> Kontraktlar: aynan shu vaqtda, shu sotuvchi yuborgan shu mahsulotli kontraktning ID si (begona kontrakt tasdiqlanmasin). */
-    String moderatordaKontraktId() {
+    String moderatordaKontraktId(String vaqt) {
         String stir = Config.getOr("trader1.stir", "311927414");
         String id = waitFor(() -> {
             for (WebElement r : driver.findElements(By.cssSelector("main tbody tr")))
-                if (yuborilganVaqt.equals(ustun(r, "Ariza yuborilgan sana")) && r.getText().contains(PRODUCT) && r.getText().contains(stir)) {
+                if (vaqt.equals(ustun(r, "Ariza yuborilgan sana")) && r.getText().contains(PRODUCT) && r.getText().contains(stir)) {
                     String x = ustun(r, "ID raqam");
                     if (x.matches("\\d+")) return x;
                 }
             return null;
         }, 20);
-        Assert.assertNotNull(id, "Moderator ro'yxatida " + yuborilganVaqt + " da yuborilgan '" + PRODUCT + "' kontrakti (sotuvchi " + stir + ") topilmadi");
+        Assert.assertNotNull(id, "Moderator ro'yxatida " + vaqt + " da yuborilgan '" + PRODUCT + "' kontrakti (sotuvchi " + stir + ") topilmadi");
         return id;
     }
 
@@ -151,8 +157,98 @@ public abstract class AuctionFlowTest extends SavdoAsos {
     }
 
 
-    // ------------------------------------------------------------------ 2
+    // ------------------------------------------------------------------ 2a
+    boolean radEtildi = false;
+    static final String RAD_SABAB = "Avtotest: rad etish";
+
+    /** Moderatorning ochiq turgan ro'yxatida ID bo'yicha qator (sarlavha bo'yicha). */
+    WebElement yangiQator(String id) {
+        for (WebElement r : driver.findElements(By.cssSelector("main tbody tr"))) if (id.equals(ustun(r, "ID raqam"))) return r;
+        return null;
+    }
+
+    /** Ro'yxat bo'limini (Yangi / Rad etilgan / Ochilgan kontraktlar) ochadi. */
+    void moderatorTab(String tab) {
+        jsClick(driver, waitFor(() -> visible(driver, By.xpath("//main//button[starts-with(normalize-space(.),'" + tab + "')]")), 20));
+        jadvalKut(driver);
+        sleep(1000);
+    }
+
     @Test(priority = 2, dependsOnMethods = "step1_kontraktYaratish",
+          description = "Moderator ikkinchi kontraktni BITTA rolda rad etadi: kontrakt darhol 'Rad etilgan' ga o'tadi")
+    public void step2a_moderatorRadEtishi() {
+        String base = Config.adminUrl();
+        kim("admin1");
+        switchRole("MODERATOR_LISTING_MAIN");
+        String url = base + "/uz/moderationv2/listing/contracts";
+        driver.get(url);
+        waitFor(() -> visible(driver, By.cssSelector("main tbody tr")), 30);
+        sleep(500);
+        radId = moderatordaKontraktId(radVaqt);
+        // --- SALBIY: sababsiz rad etish (imzo to'sib qo'yilgan)
+        radOynasi();
+        eimzoTosish(driver);
+        jsClick(driver, radTugma());
+        waitFor(() -> eimzoUrinishlari(driver) > 0 || lastVisible(driver, By.xpath("//*[@role='dialog']//*[contains(text(),'Majburiy maydon')]")) != null ? Boolean.TRUE : null, 5);
+        boolean majburiy = lastVisible(driver, By.xpath("//*[@role='dialog']//*[contains(text(),'Majburiy maydon')]")) != null;
+        System.out.println("2a) sababsiz rad etish -> " + (majburiy && eimzoUrinishlari(driver) == 0 ? "rad etildi ✓" : "QABUL QILINDI") + " " + toasts(driver) + ", imzo so'rovlari " + eimzoUrinishlari(driver));
+        Assert.assertTrue(majburiy && eimzoUrinishlari(driver) == 0, "Moderator sababsiz rad eta oldi");
+        // --- IJOBIY: sahifa qayta ochiladi (imzo to'sig'i olinadi)
+        driver.get(url);
+        waitFor(() -> visible(driver, By.cssSelector("main tbody tr")), 30);
+        sleep(500);
+        radOynasi();
+        WebElement sabab = waitFor(() -> lastVisible(driver, By.cssSelector("[role=dialog] textarea")), 5);
+        Assert.assertNotNull(sabab, "Rad etish oynasida 'Sababi' maydoni yo'q");
+        sabab.sendKeys(RAD_SABAB);
+        jsClick(driver, radTugma());
+        Eimzo.typePassword(8);
+        boolean toast = waitToast(driver, "Muvaffaqiyatli", 10);
+        System.out.println("2a) MODERATOR_LISTING_MAIN rad etdi (ID " + radId + "). Xabarlar: " + toasts(driver) + (toast ? "" : " (muvaffaqiyat xabari ko'rinmadi)"));
+        // faqat bitta rol rad etdi: kontrakt darhol 'Yangi' dan chiqib 'Rad etilgan' ga o'tishi kerak
+        driver.get(url);
+        waitFor(() -> visible(driver, By.cssSelector("main tbody tr")), 30);
+        moderatorTab("Yangi");
+        Assert.assertNull(yangiQator(radId), "Rad etilgan kontrakt (ID " + radId + ") hali ham 'Yangi' ro'yxatida");
+        moderatorTab("Rad etilgan");
+        WebElement r = waitFor(() -> yangiQator(radId), 10);
+        Assert.assertNotNull(r, "Kontrakt (ID " + radId + ") 1 rolda rad etilgach 'Rad etilgan' ga o'tmadi");
+        System.out.println("2a) moderator 'Rad etilgan' da: " + cut(clean(r.getText()), 400));
+        radEtildi = true;
+        Assert.assertTrue(r.getText().contains("Avtotest"), "Rad etish sababi moderator ro'yxatida yo'q: " + clean(r.getText()));
+        // treyderda ham
+        kim("trader1");
+        driver.get(Config.traderUrl() + "/uz/trader/listing/sales");
+        WebElement t = waitFor(() -> visible(driver, By.xpath("//main//*[starts-with(normalize-space(.),'Rad etilgan')][self::button or @role='tab' or not(*)]")), 20);
+        Assert.assertNotNull(t, "Treyderda 'Rad etilgan' tabi yo'q");
+        jsClick(driver, t);
+        WebElement tr = waitFor(() -> {
+            for (WebElement x : driver.findElements(By.cssSelector("main tbody tr"))) if (radVaqt.equals(ustun(x, "Yuborilgan sana"))) return x;
+            return null;
+        }, 15);
+        Assert.assertNotNull(tr, "Rad etilgan kontrakt (" + radVaqt + ") treyderning 'Rad etilgan' ro'yxatida yo'q");
+        System.out.println("2a) treyder 'Rad etilgan' da: " + cut(clean(tr.getText()), 300));
+        Assert.assertTrue(tr.getText().contains("Avtotest"), "Treyderda rad etish sababi ko'rinmadi: " + clean(tr.getText()));
+        System.out.println("2a) Rad etish: 1 rol yetarli, kontrakt darhol 'Rad etilgan' ga o'tdi (ID " + radId + ") ✓");
+    }
+
+    void radOynasi() {
+        WebElement row = waitFor(() -> yangiQator(radId), 10);
+        Assert.assertNotNull(row, "Kontrakt ID " + radId + " 'Yangi' ro'yxatida topilmadi");
+        List<WebElement> tds = row.findElements(By.cssSelector("td"));
+        WebElement dots = tds.get(tds.size() - 1).findElement(By.cssSelector("button"));
+        js().executeScript("arguments[0].scrollIntoView({block:'center'})", dots);
+        dots.click();
+        WebElement it = waitFor(() -> lastVisible(driver, By.xpath("//*[normalize-space(text())='Rad etish']")), 10);
+        Assert.assertNotNull(it, "'⋮' menyusida 'Rad etish' yo'q");
+        it.click();
+        Assert.assertNotNull(waitFor(this::radTugma, 10), "Rad etish oynasi ochilmadi");
+    }
+
+    WebElement radTugma() { return lastVisible(driver, By.xpath("//*[@role='dialog']//button[normalize-space(.)='Yuborish']")); }
+
+    // ------------------------------------------------------------------ 2
+    @Test(priority = 3, dependsOnMethods = "step1_kontraktYaratish",
           description = "Moderator kontraktni LISTING_MAIN -> LISTING -> LISTING_MEMBER rollarida tasdiqlaydi")
     public void step2_moderatorTasdiqlashi() {
         String base = Config.adminUrl();
@@ -163,7 +259,8 @@ public abstract class AuctionFlowTest extends SavdoAsos {
                 driver.get(base + "/uz/moderationv2/listing/contracts");
                 waitFor(() -> visible(driver, By.cssSelector("main tbody tr")), 30);
                 sleep(500);
-                if (contractId == null) contractId = moderatordaKontraktId();
+                if (contractId == null) contractId = moderatordaKontraktId(yuborilganVaqt);
+                if (radEtildi) Assert.assertNull(yangiQator(radId), role + ": rad etilgan kontrakt (ID " + radId + ") hali ham 'Yangi' ro'yxatida");
                 WebElement row = findContractRow(contractId);
                 Assert.assertNotNull(row, role + ": kontrakt ID " + contractId + " ro'yxatda topilmadi");
                 List<WebElement> tds = row.findElements(By.cssSelector("td"));
@@ -181,6 +278,7 @@ public abstract class AuctionFlowTest extends SavdoAsos {
                 System.out.println("2) " + role + " tasdiqladi (ID " + contractId + ")");
             }
             savdoRaqami = ochilganKontraktRaqami(base, contractId);
+            if (radEtildi) Assert.assertTrue(driver.findElements(By.cssSelector("main tbody tr")).stream().noneMatch(r -> radId.equals(ustun(r, "ID raqam"))), "Rad etilgan kontrakt (ID " + radId + ") 'Ochilgan kontraktlar' da ko'rindi");
             System.out.println("2) Kontrakt ochildi: ID " + contractId + " -> savdo raqami " + savdoRaqami);
         } finally {
             switchRole("MODERATOR_LISTING_MAIN");
@@ -188,7 +286,7 @@ public abstract class AuctionFlowTest extends SavdoAsos {
     }
 
     // ------------------------------------------------------------------ 3
-    @Test(priority = 3, dependsOnMethods = "step2_moderatorTasdiqlashi",
+    @Test(priority = 4, dependsOnMethods = "step2_moderatorTasdiqlashi",
           description = "Admin savdo vaqtlarini qo'yadi (oldingi sessiya tugagach)")
     public void step3_savdoVaqtiniQoyish() {
         String base = Config.adminUrl();
@@ -198,6 +296,7 @@ public abstract class AuctionFlowTest extends SavdoAsos {
         driver.get(base + "/uz/moderationv2/sales-schedule/auction-sales-2/trade-session");
         jadvalKut(driver);
         // Kutib o'tirmaymiz: jadvaldagi barcha savdo qatorlari o'chiriladi va o'zimiznikilar yaratiladi
+        for (WebElement r : driver.findElements(By.cssSelector("main tbody tr"))) System.out.println("3) jadvalda turgan savdo: " + cut(clean(r.getText()), 160));
         int ochirildi = 0, n = 0;
         for (int t = 0; t < 20 && n < driver.findElements(By.cssSelector("main tbody tr")).size(); t++) {
             if (qatorniOchir(n)) ochirildi++; else n++; // o'chmagan qator o'tkazib yuboriladi
@@ -276,13 +375,35 @@ public abstract class AuctionFlowTest extends SavdoAsos {
     }
 
     // ------------------------------------------------------------------ 4
-    @Test(priority = 4, dependsOnMethods = "step3_savdoVaqtiniQoyish",
+    @Test(priority = 5, dependsOnMethods = "step3_savdoVaqtiniQoyish",
           description = "Treyder 1 e'lon vaqtida mahsulotni savdoga chiqaradi")
     public void step4_savdogaChiqarish() {
         String base = Config.traderUrl();
+        // e'lon vaqtini kutish bekor ketmasin: xaridor shu orada kirib oladi (savdo sahifasini keyin darhol ochadi)
+        try { kim("trader2"); } catch (RuntimeException e) { System.out.println("4) xaridor oldindan kira olmadi (keyin qayta urinadi): " + cut(String.valueOf(e.getMessage()), 120)); }
         kim("trader1");
+        // --- SALBIY: minus va 0 lot (imzo to'sib qo'yilgan, hech narsa yuborilmaydi). E'lon boshlanishidan oldin qilinadi, bo'lmasa keyin
+        boolean salbiyOldin = java.time.Duration.between(LocalDateTime.now(), elonStart).toSeconds() > 15;
+        if (salbiyOldin) {
+            try { lotSalbiy(base); } catch (Throwable e) { salbiyOldin = false; System.out.println("4-negativ) e'londan oldin oyna ochilmadi, e'lon vaqtida qilinadi: " + cut(String.valueOf(e.getMessage()), 100)); }
+        }
         waitUntil(elonStart.plusSeconds(5), "e'lon berish vaqti");
-        // --- SALBIY: minus va 0 lot (imzo to'sib qo'yilgan, hech narsa yuborilmaydi)
+        long qoyishBoshi = System.currentTimeMillis();
+        if (!salbiyOldin) lotSalbiy(base);
+        // --- IJOBIY
+        WebElement lots = lotOynasi(base);
+        lotYoz(lots, LOTS);
+        jsClick(driver, lastVisible(driver, By.xpath("//button[normalize-space(.)='Saqlash']")));
+        Set<String> yig = new LinkedHashSet<>(); // xabar tez yo'qoladi: yig'ib boramiz
+        imzoYoki(() -> { yig.addAll(toasts(driver)); return yig.stream().anyMatch(x -> x.contains("Muvaffaqiyatli") || x.contains("avval taklif berilgan") || x.contains("Majburiy")); }, 12);
+        List<String> t = new ArrayList<>(yig);
+        Assert.assertTrue(t.stream().anyMatch(x -> x.contains("Muvaffaqiyatli")), "Savdoga chiqarilgani tasdiqlanmadi ('Muvaffaqiyatli' xabari yo'q): " + t);
+        System.out.println("4) " + LOTS + " lot savdoga qo'yildi (" + (System.currentTimeMillis() - qoyishBoshi) / 1000.0 + " s). Xabarlar: " + t);
+        // sotuvchi o'z mahsulotini tekshirishi xaridor oynalarni tayyorlagandan keyin (5-qadamda, savdo boshlanguncha) qilinadi
+    }
+
+    /** Savdoga chiqarish oynasida minus va 0 lot (imzo to'sib qo'yilgan, hech narsa yuborilmaydi). */
+    void lotSalbiy(String base) {
         WebElement lots = lotOynasi(base);
         lotYoz(lots, "-5");
         String v = lots.getAttribute("value");
@@ -294,15 +415,10 @@ public abstract class AuctionFlowTest extends SavdoAsos {
         waitFor(() -> !toasts(driver).isEmpty() || eimzoUrinishlari(driver) > 0 ? Boolean.TRUE : null, 4);
         System.out.println("4-negativ) 0 lot -> xabarlar: " + toasts(driver) + ", imzo so'rovlari: " + eimzoUrinishlari(driver));
         if (eimzoUrinishlari(driver) > 0) negativXatolar.add("Savdoga chiqarish: 0 lot bilan forma o'tdi va imzo so'radi (imzo to'sildi)");
-        // --- IJOBIY
-        lots = lotOynasi(base);
-        lotYoz(lots, LOTS);
-        jsClick(driver, lastVisible(driver, By.xpath("//button[normalize-space(.)='Saqlash']")));
-        Set<String> yig = new LinkedHashSet<>(); // xabar tez yo'qoladi: yig'ib boramiz
-        imzoYoki(() -> { yig.addAll(toasts(driver)); return yig.stream().anyMatch(x -> x.contains("Muvaffaqiyatli") || x.contains("avval taklif berilgan") || x.contains("Majburiy")); }, 12);
-        List<String> t = new ArrayList<>(yig);
-        Assert.assertTrue(t.stream().anyMatch(x -> x.contains("Muvaffaqiyatli")), "Savdoga chiqarilgani tasdiqlanmadi ('Muvaffaqiyatli' xabari yo'q): " + t);
-        System.out.println("4) " + LOTS + " lot savdoga qo'yildi. Xabarlar: " + t);
+    }
+
+    /** Sotuvchi o'z mahsulotini "Sotib olish" da ko'rmasligi / taklif oynasini ocholmasligi kerak. */
+    void ozMahsulotiTekshir(String base) {
         // salbiy holat uchun: sotuvchi o'z mahsulotiga taklif oynasini OLDINDAN ochib qo'yadi (savdoda faqat bosiladi)
         try {
             joriyMijoz = "";
@@ -369,7 +485,7 @@ public abstract class AuctionFlowTest extends SavdoAsos {
     }
 
     // ------------------------------------------------------------------ 4b
-    @Test(priority = 9, dependsOnMethods = "step5_taklifBerish",
+    @Test(priority = 10, dependsOnMethods = "step5_taklifBerish",
           description = "SALBIY holatlar natijasi: minus/0 lot, mavjuddan ko'p (101) lotga taklif")
     public void step9_negativNatijalar() {
         System.out.println("SALBIY holatlar: " + (negativXatolar.isEmpty() ? "hammasi rad etildi ✓" : negativXatolar));
@@ -377,7 +493,7 @@ public abstract class AuctionFlowTest extends SavdoAsos {
     }
 
     // ------------------------------------------------------------------ 5
-    @Test(priority = 5, dependsOnMethods = "step4_savdogaChiqarish",
+    @Test(priority = 6, dependsOnMethods = "step4_savdogaChiqarish",
           description = "Treyder 2 savdo vaqtida mahsulotga taklif beradi")
     public void step5_taklifBerish() {
         String base = Config.traderUrl();
@@ -385,6 +501,9 @@ public abstract class AuctionFlowTest extends SavdoAsos {
         // --- IJOBIY: bitta sahifada BIDS ta taklif OYNASI oldindan ochiladi (🔨 har bosilganda yangi oyna),
         // har birida mijoz va miqdor kiritiladi; savdo boshlanishi bilan oynalar ketma-ket yuboriladi, PAUZA oralig'i bilan.
         savdoSahifasi(base);
+        // --- SALBIY: savdo boshlanmasdan taklif (oynalar tayyorlanishidan OLDIN: savdo ochilib qolmasin)
+        if (qoldi(savdoStart) >= 10) boshlanmaganTaklif();
+        else System.out.println("5n) savdo boshlanmasdan taklif: savdo boshlanishiga " + qoldi(savdoStart) + " s qoldi, TEKSHIRILMADI");
         List<WebElement> oynalar = new ArrayList<>();
         long tayyorlashBoshi = System.currentTimeMillis();
         for (int i = 0; i < BIDS; i++) {
@@ -398,6 +517,12 @@ public abstract class AuctionFlowTest extends SavdoAsos {
         WebElement kopPanel = waitFor(() -> { try { return oynaTayyorla(kop); } catch (Throwable e) { sleep(1000); return null; } }, 20);
         // 101 lotdan KEYIN beriladigan 1 lotli taklif: lot qolmagani uchun yutqazishi kerak (savatchada qizil)
         WebElement yutqazPanel = waitFor(() -> { try { return oynaTayyorla(BID_LOTS); } catch (Throwable e) { sleep(1000); return null; } }, 20);
+        // savdo tugagach bosiladigan oyna ham oldindan ochib qo'yiladi
+        kechPanel = yangiOyna();
+        // sotuvchi o'z mahsulotiga taklif bera olmasligi (vaqt yetmasa savdo oxirida tekshiriladi)
+        if (qoldi(savdoStart) >= 15) { kim("trader1"); try { ozMahsulotiTekshir(base); } finally { kim("trader2"); } }
+        // --- SALBIY (savdo boshlanguncha qolgan vaqtda): oynaning o'zi tekshiradigan holatlar
+        savdoOldiSalbiy();
         waitUntil(savdoStart, "savdo vaqti");
         // kompyuter va sayt soati farq qiladi: saytning o'zi 'AMALDAGI ... HH:mm:00' deb ko'rsatishini kutamiz
         java.util.regex.Pattern amaldagi = java.util.regex.Pattern.compile("(?s)AMALDAGI(?:(?!KEYINGI).)*" + savdoStart.format(HM) + ":00", java.util.regex.Pattern.CASE_INSENSITIVE);
@@ -433,7 +558,7 @@ public abstract class AuctionFlowTest extends SavdoAsos {
         // --- 101 lot (qisman yutadi), keyin yana 1 lot (yutqazadi), so'ng savatcha ranglari savdo ICHIDA o'qiladi
         qismanTaklif(kopPanel, kop);
         if (vaqtYetadimi("yutqazadigan taklif")) yutqazadiganTaklif(yutqazPanel);
-        if (vaqtYetadimi("savatcha ranglari")) savatchaTekshir();
+        if (vaqtYetadimi("savatcha ranglari")) savatchaTekshir(KUTILGAN, 1, 1);
         savdoSalbiyHolatlar();
         ozMahsulotigaTaklif(base);
         System.out.println("5) hamma ish tugaganda savdoga qolgan vaqt: " + java.time.Duration.between(LocalDateTime.now(), savdoEnd).toSeconds() + " s");
@@ -459,18 +584,82 @@ public abstract class AuctionFlowTest extends SavdoAsos {
                 {"kasr lot", "1.5", NARX}, {"harf lot", "abc", NARX}, {"harf pul", "1", "abc"},
                 {"juda ko'p lot (mablag'dan katta)", "999999999", NARX},
         };
-        for (String[] h : holatlar) {
-            if (!vaqtYetadimi(h[0])) continue;
+        // server tekshiradigan holatlar (savdo ochiq bo'lishi kerak) birinchi; savdodan oldin tekshirilganlar qayta qilinmaydi
+        List<String[]> tartib = new ArrayList<>();
+        for (String[] h : holatlar) if (h[0].startsWith("juda")) tartib.add(0, h); else tartib.add(h);
+        for (String[] h : tartib) {
+            if (oldinTekshirildi.contains(h[0]) || !vaqtYetadimi(h[0])) continue;
             salbiyHolat(h[0], h[1], h[2], null);
         }
         if (vaqtYetadimi("past narx")) pastNarx();
-        if (vaqtYetadimi("mijozsiz taklif")) { mijozsiz = true; try { salbiyHolat("mijoz tanlanmagan", "1", NARX, yangiOyna()); } finally { mijozsiz = false; } }
+        if (!oldinTekshirildi.contains("mijoz tanlanmagan") && vaqtYetadimi("mijozsiz taklif")) { mijozsiz = true; try { salbiyHolat("mijoz tanlanmagan", "1", NARX, yangiOyna()); } finally { mijozsiz = false; } }
         // treyder o'z nomidan (mijozsiz emas, ro'yxatdagi birinchi: o'z kompaniyasi): natija qayd qilinadi, qabul qilinsa o'chiriladi
         if (vaqtYetadimi("o'z nomidan taklif") && !XARIDOR_MIJOZ.isEmpty()) {
             joriyMijoz = "";
             try { salbiyHolat("treyder O'Z NOMIDAN taklif (ma'lumot uchun)", BID_LOTS, NARX, yangiOyna()); } finally { joriyMijoz = XARIDOR_MIJOZ; }
         }
-        if (vaqtYetadimi("savdodan keyingi taklif oynasi")) kechPanel = yangiOyna();
+        if (kechPanel == null && vaqtYetadimi("savdodan keyingi taklif oynasi")) kechPanel = yangiOyna();
+    }
+
+    /** Savdodan oldin to'liq tekshirilgan salbiy holatlar (savdo ichida qayta qilinmaydi). */
+    Set<String> oldinTekshirildi = new LinkedHashSet<>();
+    /** true: savdo hali boshlanmagan - yuborilgan holat faqat oynaning o'z xabari bilan rad etilsa hisoblanadi. */
+    boolean savdoOldi = false;
+
+    /** t gacha qolgan soniya. */
+    static long qoldi(LocalDateTime t) { return java.time.Duration.between(LocalDateTime.now(), t).toSeconds(); }
+
+    /** Savdo boshlanmasdan taklif: qabul qilinmasligi va "savdo vaqti emas / boshlanmagan" xabari chiqishi kerak. */
+    void boshlanmaganTaklif() {
+        try {
+            WebElement p = yangiOyna();
+            if (p == null) { negativXatolar.add("Savdo boshlanmasdan taklif: oyna ochilmadi, tekshirilmadi"); return; }
+            int oldin = taklifSoni();
+            jsClick(driver, p.findElement(By.xpath(".//button[normalize-space(.)='Sotib olish']")));
+            Set<String> x = new LinkedHashSet<>();
+            for (long end = System.currentTimeMillis() + 3000; System.currentTimeMillis() < end; sleep(200)) {
+                toasts(driver).stream().filter(y -> !y.startsWith("Loading")).forEach(x::add);
+                if (!Eimzo.windowTitle().isEmpty()) { Eimzo.closeIfShown(1); x.add("E-IMZO so'radi (parolsiz yopildi)"); }
+                if (!x.isEmpty() && x.stream().anyMatch(BOSHLANMAGAN::test)) break;
+            }
+            int keyin = taklifSoni();
+            boolean qabul = oldin >= 0 && keyin > oldin;
+            boolean xabar = x.stream().anyMatch(BOSHLANMAGAN::test);
+            System.out.println("5n) savdo boshlanmasdan taklif -> " + (qabul ? "QABUL QILINDI" : "qabul qilinmadi") + ", takliflar " + oldin + " -> " + keyin + ", xabarlar: " + x
+                    + (!qabul && xabar ? " ✓" : ""));
+            rasmOl("savdo_boshlanmagan");
+            if (qabul) {
+                negativXatolar.add("Savdo boshlanmasdan berilgan taklif QABUL QILINDI");
+                System.out.println("5n)    qabul qilingan taklif o'chirildi: " + (engYangisiniOchir(meningTakliflarim()) ? "ha" : "YO'Q"));
+            } else if (!xabar) negativXatolar.add("Savdo boshlanmasdan taklif: 'savdo vaqti boshlanmagan' xabari chiqmadi (xabarlar: " + x + ")");
+        } catch (Throwable e) {
+            rasmOl("savdo_boshlanmagan_xato");
+            negativXatolar.add("Savdo boshlanmasdan taklif: tekshirib bo'lmadi: " + cut(String.valueOf(e.getMessage()), 120));
+        }
+    }
+
+    static final java.util.function.Predicate<String> BOSHLANMAGAN = y -> { String t = norm(y).toLowerCase(); return t.contains("vaqti emas") || t.contains("boshlanmagan") || t.contains("vaqt emas"); };
+
+    /** Savdo boshlanguncha qolgan vaqtda oynaning o'zi tekshiradigan salbiy holatlar (savdoga 6 s qolganda to'xtaydi). */
+    void savdoOldiSalbiy() {
+        String[][] holatlar = {
+                {"minus lot", "-5", NARX}, {"minus pul", "1", "-" + NARX},
+                {"kasr lot", "1.5", NARX}, {"harf lot", "abc", NARX}, {"harf pul", "1", "abc"},
+                {"0 lot", "0", NARX}, {"0 pul", "1", "0"},
+                {"bo'sh lot", "", NARX}, {"bo'sh pul", "1", ""},
+        };
+        savdoOldi = true;
+        try {
+            for (String[] h : holatlar) {
+                if (java.time.Duration.between(LocalDateTime.now(), savdoStart).toSeconds() < 6) break;
+                if (salbiyHolat(h[0], h[1], h[2], null)) oldinTekshirildi.add(h[0]);
+            }
+            if (java.time.Duration.between(LocalDateTime.now(), savdoStart).toSeconds() >= 6) {
+                mijozsiz = true;
+                try { if (salbiyHolat("mijoz tanlanmagan", "1", NARX, yangiOyna())) oldinTekshirildi.add("mijoz tanlanmagan"); } finally { mijozsiz = false; }
+            }
+        } finally { savdoOldi = false; salbiyPanel = null; }
+        System.out.println("5n) savdodan oldin tekshirildi: " + oldinTekshirildi.size() + " ta " + oldinTekshirildi);
     }
 
     /** Boshlang'ichdan PAST narx: taklif berish mumkin, lekin savatchada ko'rinmasligi va kontrakt tuzilmasligi kerak (o'chirilmaydi). */
@@ -530,8 +719,10 @@ public abstract class AuctionFlowTest extends SavdoAsos {
         return p == null ? -1 : rangliQatorlar(p).size();
     }
 
-    void salbiyHolat(String nom, String lot, String pul, WebElement oyna) {
+    /** @return hukm ishonchli bo'lsa true (savdodan oldin: faqat oynaning o'z xabari bilan rad etilgan yoki maydon qabul qilmagan bo'lsa). */
+    boolean salbiyHolat(String nom, String lot, String pul, WebElement oyna) {
         boolean malumot = nom.contains("ma'lumot uchun");
+        String bosh = savdoOldi ? "5n) [savdodan oldin] " : "5n) ";
         try {
             WebElement p = oyna;
             if (p == null) {
@@ -540,17 +731,17 @@ public abstract class AuctionFlowTest extends SavdoAsos {
                 if (!bor) salbiyPanel = yangiOyna();
                 p = salbiyPanel;
             }
-            if (p == null) { System.out.println("5n) " + nom + ": oyna yo'q, TEKSHIRILMADI"); negativXatolar.add(nom + ": tekshirib bo'lmadi (oyna ochilmadi)"); return; }
+            if (p == null) { System.out.println(bosh + nom + ": oyna yo'q, TEKSHIRILMADI"); if (!savdoOldi) negativXatolar.add(nom + ": tekshirib bo'lmadi (oyna ochilmadi)"); return false; }
             String lv = maydonYoz(p.findElement(By.cssSelector("input[placeholder='Miqdor']")), lot);
             List<WebElement> narxlar = p.findElements(By.cssSelector("input[placeholder='Narx'], input[name='price']"));
             if (narxlar.isEmpty()) narxlar = p.findElements(By.xpath(".//*[normalize-space(text())='Narx']/following::input[1]"));
             String pv = narxlar.isEmpty() ? "?" : maydonYoz(narxlar.get(0), pul);
             String lt = lv.replaceAll("\\s", ""), pt = pv.replaceAll("\\s", "");
             if (!lt.equals(lot) || (!pv.equals("?") && !pt.equals(pul))) {
-                System.out.println("5n) " + nom + ": yozildi [" + lot + " x " + pul + "], maydonda [" + lv + " x " + pv + "] -> maydon qabul qilmadi ✓");
-                return;
+                System.out.println(bosh + nom + ": yozildi [" + lot + " x " + pul + "], maydonda [" + lv + " x " + pv + "] -> maydon qabul qilmadi ✓");
+                return true;
             }
-            if (pv.equals("?") && !pul.equals(NARX)) { System.out.println("5n) " + nom + ": narx maydoni topilmadi, TEKSHIRILMADI"); negativXatolar.add(nom + ": narx maydoni topilmadi"); return; }
+            if (pv.equals("?") && !pul.equals(NARX)) { System.out.println(bosh + nom + ": narx maydoni topilmadi, TEKSHIRILMADI"); if (!savdoOldi) negativXatolar.add(nom + ": narx maydoni topilmadi"); return false; }
             int oldin = taklifSoni();
             jsClick(driver, p.findElement(By.xpath(".//button[normalize-space(.)='Sotib olish']")));
             Set<String> x = new LinkedHashSet<>();
@@ -562,9 +753,16 @@ public abstract class AuctionFlowTest extends SavdoAsos {
             String oynaMatni = "";
             try { oynaMatni = clean(p.getText()); } catch (Exception ignore) {}
             int keyin = taklifSoni();
-            if (oldin < 0 || keyin < 0) { System.out.println("5n) " + nom + ": takliflar soni o'qilmadi, TEKSHIRILMADI"); negativXatolar.add(nom + ": takliflar soni o'qilmadi"); return; }
+            if (oldin < 0 || keyin < 0) { System.out.println(bosh + nom + ": takliflar soni o'qilmadi, TEKSHIRILMADI"); if (!savdoOldi) negativXatolar.add(nom + ": takliflar soni o'qilmadi"); return false; }
             boolean qabul = keyin > oldin;
-            System.out.println("5n) " + nom + " [" + lv + " x " + pv + "] -> " + (qabul ? "QABUL QILINDI" : "rad etildi ✓") + ", takliflar " + oldin + " -> " + keyin + ", xabarlar: " + x
+            // savdodan oldin server baribir "vaqti emas" deydi: hukm faqat oynaning o'z xabari (Min / musbat / Majburiy) bo'lsa ishonchli
+            boolean ozXabari = x.stream().anyMatch(y -> y.contains("Min") || y.contains("musbat") || y.contains("Majburiy")) && x.stream().noneMatch(BOSHLANMAGAN);
+            if (savdoOldi && !qabul && !ozXabari) {
+                System.out.println(bosh + nom + " [" + lv + " x " + pv + "] -> oyna o'zi to'xtatmadi (xabarlar: " + x + "), savdo ichida qayta tekshiriladi");
+                salbiyPanel = null;
+                return false;
+            }
+            System.out.println(bosh + nom + " [" + lv + " x " + pv + "] -> " + (qabul ? "QABUL QILINDI" : "rad etildi ✓") + ", takliflar " + oldin + " -> " + keyin + ", xabarlar: " + x
                     + (x.isEmpty() && !qabul ? " | oyna: " + cut(oynaMatni, 160) : ""));
             if (qabul) {
                 salbiyPanel = null; // qabul qilingach oyna tozalanadi
@@ -575,10 +773,12 @@ public abstract class AuctionFlowTest extends SavdoAsos {
                 System.out.println("5n)    qabul qilingan taklif o'chirildi: " + (ochdi ? "ha" : "YO'Q"));
                 if (!ochdi) negativXatolar.add(nom + ": qabul qilingan taklif o'chmadi, bitimga aylanishi mumkin");
             }
+            return true;
         } catch (Throwable e) {
             rasmOl("salbiy_xato");
-            System.out.println("5n) " + nom + ": TEKSHIRILMADI: " + cut(String.valueOf(e.getMessage()), 150));
-            negativXatolar.add(nom + ": tekshirib bo'lmadi");
+            System.out.println(bosh + nom + ": TEKSHIRILMADI: " + cut(String.valueOf(e.getMessage()), 150));
+            if (!savdoOldi) negativXatolar.add(nom + ": tekshirib bo'lmadi");
+            return false;
         }
     }
 
@@ -640,21 +840,54 @@ public abstract class AuctionFlowTest extends SavdoAsos {
     }
 
     /** "Mening takliflarim" dagi eng yangi (1-qator) taklifni 🗑 bilan o'chiradi. Qator yo'qolsa true. */
-    boolean engYangisiniOchir(WebElement p) {
+    boolean engYangisiniOchir(WebElement p) { return taklifQatoriniOchir(p, 0); }
+
+    /** "Mening takliflarim" dagi idx-qatordagi taklifni 🗑 bilan o'chiradi. Qator yo'qolsa true. */
+    boolean taklifQatoriniOchir(WebElement p, int idx) {
         if (p == null) return false;
         int oldin = rangliQatorlar(p).size();
         // 🗑 ustuni o'ng chetda: oyna tor bo'lsa, jadval surilmaguncha sahifada bo'lmaydi
         js().executeScript("for(const e of [arguments[0],...arguments[0].querySelectorAll('*')]) if(e.scrollWidth>e.clientWidth+5) e.scrollLeft=e.scrollWidth;", p);
         waitFor(() -> p.findElements(By.cssSelector("[role=row] svg, tbody tr svg")).isEmpty() ? null : Boolean.TRUE, 3);
         Object bosildi = js().executeScript(
-                "const rows=[...arguments[0].querySelectorAll('[role=row],tbody tr')].filter(r=>!r.querySelector('[role=columnheader],th')); if(!rows.length) return null;" +
-                "const sv=[...rows[0].querySelectorAll('svg')]; if(!sv.length) return null; const s=sv[sv.length-1]; const b=s.closest('button,[role=button],a')||s;" +
-                "['mousedown','mouseup','click'].forEach(t=>b.dispatchEvent(new MouseEvent(t,{bubbles:true}))); return 'ok';", p);
+                "const rows=[...arguments[0].querySelectorAll('[role=row],tbody tr')].filter(r=>!r.querySelector('[role=columnheader],th')); if(rows.length<=arguments[1]) return null;" +
+                "const sv=[...rows[arguments[1]].querySelectorAll('svg')]; if(!sv.length) return null; const s=sv[sv.length-1]; const b=s.closest('button,[role=button],a')||s;" +
+                "['mousedown','mouseup','click'].forEach(t=>b.dispatchEvent(new MouseEvent(t,{bubbles:true}))); return 'ok';", p, idx);
         if (bosildi == null) { rasmOl("ochirish_tugmasi_yoq"); return false; }
         WebElement ok = waitFor(() -> lastVisible(driver, By.xpath("//*[@role='dialog' or contains(@class,'modal')]//button[contains(normalize-space(.),'chirish') or normalize-space(.)='Ha' or normalize-space(.)='Tasdiqlash']")), 2);
         if (ok != null) jsClick(driver, ok);
         imzoYoki(() -> rangliQatorlar(p).size() < oldin, 6);
         return rangliQatorlar(p).size() < oldin;
+    }
+
+    /** Qatorda shu lot soni bilan 1 000 000 narx bormi ("... 101 1 000 000 ..."). */
+    static boolean lotliQator(String qator, int lot) { return qator.replace(' ', ' ').matches(".*\\b" + lot + "\\s+1 000 000\\b.*"); }
+
+    boolean qismanOchirildi = false, yutqazadiganBerildi = false;
+
+    /** 101 lotli (qisman yutgan) taklif 🗑 bilan o'chiriladi va ro'yxatdan yo'qolgani tekshiriladi. */
+    void qismanTaklifniOchir() {
+        int kop = Integer.parseInt(LOTS) + 1;
+        try {
+            WebElement p = meningTakliflarim();
+            if (p == null) { savatchaXatolar.add("'Mening takliflarim' ochilmadi (" + kop + " lotli taklif o'chirilmadi)"); return; }
+            List<String> oldin = rangliQatorlar(p);
+            int idx = -1;
+            for (int i = 0; i < oldin.size(); i++) if (lotliQator(oldin.get(i), kop)) { idx = i; break; }
+            if (idx < 0) { savatchaXatolar.add(kop + " lotli taklif 'Mening takliflarim' da topilmadi: " + oldin); return; }
+            boolean ochdi = taklifQatoriniOchir(p, idx);
+            List<String> keyin = rangliQatorlar(p);
+            boolean yoq = keyin.stream().noneMatch(q -> lotliQator(q, kop));
+            System.out.println("5b) " + kop + " lotli taklif o'chirildi: " + oldin.size() + " -> " + keyin.size() + ", xabarlar: " + toasts(driver) + (ochdi && yoq ? " ✓" : ""));
+            rasmOl("taklif_101_ochirildi");
+            if (!ochdi || !yoq) { savatchaXatolar.add(kop + " lotli taklif o'chmadi: " + oldin.size() + " -> " + keyin.size()); return; }
+            qismanOchirildi = true;
+            // bo'shagan lotni 101 dan keyingi 1 lotli taklif oladi: savatchada hammasi yashil bo'lishi kerak
+            if (vaqtYetadimi("o'chirilgandan keyingi savatcha")) savatchaTekshir(KUTILGAN + (yutqazadiganBerildi ? 1 : 0), 0, 0);
+        } catch (Exception e) {
+            rasmOl("ochirish_101_xato");
+            savatchaXatolar.add(kop + " lotli taklifni o'chirib bo'lmadi: " + e.getMessage());
+        }
     }
 
     /** Eng yangi 1 lotli taklifni 🗑 bilan o'chiradi va ro'yxatdan yo'qolganini tekshiradi. */
@@ -684,40 +917,46 @@ public abstract class AuctionFlowTest extends SavdoAsos {
             try { ochiq = panel != null && panel.isDisplayed(); } catch (Exception e) { ochiq = false; }
             if (!ochiq) panel = oynaTayyorla(BID_LOTS);
             yuborish(panel, BIDS + 2, BID_LOTS);
+            yutqazadiganBerildi = true;
         } catch (Throwable e) {
             savatchaXatolar.add("Yutqazadigan taklif berilmadi: " + e.getMessage());
         }
     }
 
-    /** Kartochkadagi savatcha (bolg'acha yonidagi belgi) -> Narx / Miqdor oynasi, ranglar o'qiladi. */
-    void savatchaTekshir() {
+    /** Kartochkadagi savatcha (bolg'acha yonidagi belgi) -> Narx / Miqdor oynasi, ranglar o'qiladi va kutilgani bilan solishtiriladi. */
+    void savatchaTekshir(int kYashil, int kSariq, int kQizil) {
         try {
             WebElement mt = meningTakliflarim();
             List<String> taklif = mt == null ? new ArrayList<>() : rangliQatorlar(mt);
             System.out.println("5b) Mening takliflarim ranglari: " + sanaRang(taklif));
             taklif.forEach(x -> System.out.println("     " + x));
-            WebElement belgi = kartochka().findElements(By.cssSelector("svg")).get(3);
-            js().executeScript("const b=arguments[0].closest('button,[role=button],a')||arguments[0]; b.dispatchEvent(new MouseEvent('click',{bubbles:true}));", belgi);
-            WebElement kitob = waitFor(() -> lastVisible(driver, By.xpath("//*[@role='grid' or self::table][.//*[normalize-space(text())='Narx'] and .//*[normalize-space(text())='Miqdor']]")), 6);
+            By kitobBy = By.xpath("//*[@role='grid' or self::table][.//*[normalize-space(text())='Narx'] and .//*[normalize-space(text())='Miqdor']]");
+            if (lastVisible(driver, kitobBy) == null) { // ochiq bo'lmasa savatcha belgisi bosiladi
+                WebElement belgi = kartochka().findElements(By.cssSelector("svg")).get(3);
+                js().executeScript("const b=arguments[0].closest('button,[role=button],a')||arguments[0]; b.dispatchEvent(new MouseEvent('click',{bubbles:true}));", belgi);
+            }
+            WebElement kitob = waitFor(() -> lastVisible(driver, kitobBy), 6);
             sleep(1000);
             rasmOl("savatcha");
             if (kitob == null) { savatchaXatolar.add("Savatcha oynasi ochilmadi"); return; }
+            // o'chirishdan keyin savatcha yangilanishi uchun kutamiz (kutilgan ranglar chiqquncha, ko'pi bilan 5 s)
+            waitFor(() -> { Map<String, Integer> r = sanaRang(rangliQatorlar(kitob)); return r.getOrDefault("yashil", 0) == kYashil && r.getOrDefault("sariq", 0) == kSariq && r.getOrDefault("qizil", 0) == kQizil ? Boolean.TRUE : null; }, 5);
             List<String> q = rangliQatorlar(kitob);
             Map<String, Integer> rang = sanaRang(q);
-            System.out.println("5b) SAVATCHA ranglari: " + rang + " (kutilgan: yashil " + KUTILGAN + ", sariq 1, qizil 1)");
+            System.out.println("5b) SAVATCHA ranglari: " + rang + " (kutilgan: yashil " + kYashil + ", sariq " + kSariq + ", qizil " + kQizil + ")");
             q.forEach(x -> System.out.println("     " + x));
             savatchaOqildi = true;
             int y = rang.getOrDefault("yashil", 0), s = rang.getOrDefault("sariq", 0), k = rang.getOrDefault("qizil", 0);
-            if (y != KUTILGAN) savatchaXatolar.add("Savatcha: yashil (yutgan) " + y + " ta, kutilgan " + KUTILGAN);
-            if (s != 1) savatchaXatolar.add("Savatcha: sariq (qisman) " + s + " ta, kutilgan 1");
-            if (k != 1) savatchaXatolar.add("Savatcha: qizil (yutqizgan) " + k + " ta, kutilgan 1");
+            if (y != kYashil) savatchaXatolar.add("Savatcha: yashil (yutgan) " + y + " ta, kutilgan " + kYashil);
+            if (s != kSariq) savatchaXatolar.add("Savatcha: sariq (qisman) " + s + " ta, kutilgan " + kSariq);
+            if (k != kQizil) savatchaXatolar.add("Savatcha: qizil (yutqizgan) " + k + " ta, kutilgan " + kQizil);
         } catch (Exception e) {
             rasmOl("savatcha_xato");
             savatchaXatolar.add("Savatchani o'qib bo'lmadi: " + e.getMessage());
         }
     }
 
-    @Test(priority = 9, dependsOnMethods = "step6_bitimHosilBolishi",
+    @Test(priority = 10, dependsOnMethods = "step6_bitimHosilBolishi",
           description = "Savatcha ranglari (yashil/sariq/qizil) va taklifni o'chirish")
     public void step10_savatcha() {
         if (!savatchaOqildi && savatchaXatolar.isEmpty()) savatchaXatolar.add("Savatcha o'qilmadi (savdo vaqti yetmadi)");
@@ -900,7 +1139,7 @@ public abstract class AuctionFlowTest extends SavdoAsos {
     }
 
     // ------------------------------------------------------------------ 6
-    @Test(priority = 6, dependsOnMethods = "step5_taklifBerish",
+    @Test(priority = 7, dependsOnMethods = "step5_taklifBerish",
           description = "Savdo tugagach bitim hosil bo'ladi (Treyder 1 -> Mening shartnomalarim -> Sotish)")
     public void step6_bitimHosilBolishi() {
         waitUntil(savdoEnd.plusSeconds(2), "savdo tugashi");
@@ -932,6 +1171,7 @@ public abstract class AuctionFlowTest extends SavdoAsos {
                     if (lm.find()) bitimLotlari.put(m.group(), Integer.parseInt(lm.group(1)));
                 }
             }
+            System.out.println("6) " + (attempt + 1) + "-o'qish: " + dealNos.size() + " ta bitim (kutilgan " + jamiKutilgan + ")");
             if (!dealNos.isEmpty() && dealNos.size() == oldingiSoni) barqaror++; else barqaror = 0;
             oldingiSoni = dealNos.size();
             if (dealNos.size() < jamiKutilgan && barqaror < 2) sleep(3000);
@@ -945,12 +1185,17 @@ public abstract class AuctionFlowTest extends SavdoAsos {
         System.out.println("6) Lotlar: " + bitimLotlari + " | stsenariylar uchun: " + OXIRGI_BITIMLAR);
         System.out.println("6) Bitimlar hosil bo'ldi (" + dealNos.size() + " ta, kutilgan " + jamiKutilgan + "): " + dealNos);
         if (dealNos.size() != jamiKutilgan) negativXatolar.add("Bitimlar " + dealNos.size() + " ta, kutilgan " + jamiKutilgan + " (past narx, yutqazgan yoki o'chirilgan taklifdan bitim chiqmasligi kerak)");
-        if (OXIRGI_BITIMLAR.size() != KUTILGAN) savatchaXatolar.add("1 lotli bitimlar " + OXIRGI_BITIMLAR.size() + " ta, kutilgan " + KUTILGAN + " (o'chirilgan yoki yutqazgan taklif ham bitim bo'lgan bo'lishi mumkin)");
-        // 101 lotli taklif natijasi bitimdan aniqlanadi: qolgan lotlarga (100 - 7) bitim tuzilgan bo'lsa -> qisman yutgan ✓
+        // 101 lotli taklif o'chirilgan bo'lsa: katta bitim bo'lmasligi, bo'shagan lotni 101 dan keyingi 1 lotli taklif olishi kerak
+        int birLotli = KUTILGAN + (qismanOchirildi && yutqazadiganBerildi ? 1 : 0);
+        if (OXIRGI_BITIMLAR.size() != birLotli) savatchaXatolar.add("1 lotli bitimlar " + OXIRGI_BITIMLAR.size() + " ta, kutilgan " + birLotli + " (o'chirilgan yoki yutqazgan taklif ham bitim bo'lgan bo'lishi mumkin)");
         int lotlar = Integer.parseInt(LOTS), qolgan = lotlar - KUTILGAN * Integer.parseInt(BID_LOTS);
         String katta = null;
         for (Map.Entry<String, Integer> e : bitimLotlari.entrySet()) if (e.getValue() > Integer.parseInt(BID_LOTS)) katta = e.getKey();
-        if (katta != null) {
+        if (qismanOchirildi) {
+            if (katta != null) negativXatolar.add((lotlar + 1) + " lotli taklif o'chirilgan, lekin undan bitim chiqdi: " + katta + " = " + bitimLotlari.get(katta) + " lot");
+            else System.out.println("6) o'chirilgan " + (lotlar + 1) + " lotli taklifdan bitim chiqmadi ✓; bo'shagan lotni keyingi 1 lotli taklif oldi: 1 lotli bitimlar " + OXIRGI_BITIMLAR.size() + " ta (kutilgan " + birLotli + ")");
+        } else if (katta != null) {
+            // o'chirilmagan bo'lsa (vaqt yetmadi): qolgan lotlarga bitim tuzilgan bo'lishi kerak -> qisman yutgan
             int lot = bitimLotlari.get(katta);
             System.out.println("6) " + (lotlar + 1) + " lotli taklif QABUL QILINDI va qisman yutdi: " + katta + " = " + lot + " lot (kutilgan " + qolgan + ")"
                     + (lot == qolgan ? " ✓" : " — DIQQAT: soni mos emas"));
@@ -971,7 +1216,7 @@ public abstract class AuctionFlowTest extends SavdoAsos {
     }
 
     // ------------------------------------------------------------------ 7
-    @Test(priority = 7, dependsOnMethods = "step6_bitimHosilBolishi",
+    @Test(priority = 8, dependsOnMethods = "step6_bitimHosilBolishi",
           description = "Ikkala treyder bitimni 'Ommaviy imzolash' orqali imzolaydi")
     public void step7_treyderlarImzolashi() {
         String base = Config.traderUrl();
@@ -980,7 +1225,7 @@ public abstract class AuctionFlowTest extends SavdoAsos {
     }
 
     // ------------------------------------------------------------------ 8
-    @Test(priority = 8, dependsOnMethods = "step7_treyderlarImzolashi",
+    @Test(priority = 9, dependsOnMethods = "step7_treyderlarImzolashi",
           description = "Admin bitimni 'Tasdiqlanmagan' tabidan tasdiqlaydi")
     public void step8_adminTasdiqlashi() {
         String base = Config.adminUrl();

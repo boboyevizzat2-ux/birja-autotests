@@ -1,8 +1,8 @@
 # eBirja avtotestlari: ro'yxat va so'nggi natijalar
 
-Oxirgi yangilanish: 25.11.2026, 12:45. Testlar hozir **ms** da ishlaydi: `test-ms-app.ebirja.uz` (treyder), `test-ms-head.ebirja.uz` (admin), E-IMZO kaliti bilan. Eski saytga (`test-app` / `test-head`) o'tish uchun `login.properties` dagi `trader.url` va `admin.url` almashtiriladi, kod o'zgarmaydi.
+Oxirgi yangilanish: 26.11.2026, 15:35. Testlar hozir **ms** da ishlaydi: `test-ms-app.ebirja.uz` (treyder), `test-ms-head.ebirja.uz` (admin), E-IMZO kaliti bilan. Eski saytga (`test-app` / `test-head`) o'tish uchun `login.properties` dagi `trader.url` va `admin.url` almashtiriladi, kod o'zgarmaydi.
 
-**Joriy holat:** oxirgi to'liq run 25.11, 12:08 (ms): 16:38, **30 o'tdi, 2 xato, 1 o'tkazildi**. Ikkala xato sayt tomonda (5-bo'lim: 1, 2). Undan keyin «faqat o'z bitimlarini imzolash» qo'shildi va faqat auksion yurgizildi (12:25): 9 o'tdi, 1 xato (5-bo'lim: 1). Shu oxirgi o'zgarish bilan to'liq jarayon boshidan oxirigacha hali yurgizilmagan.
+**Joriy holat:** oxirgi to'liq run 26.11, 15:14 (ms): 16:55, **32 o'tdi, 3 xato, 1 o'tkazildi**. Ikkita xato sayt tomonda (5-bo'lim: 1, 2). Uchinchisi (yetkazish muddati) test kamchiligi edi: E-IMZO bir marta «Parol noto'g'ri» qaytardi, so'rov qayta yuborilmagan. Qayta urinish qo'shildi, shu bitimda alohida yurgizilganda o'tdi (15:32). Lekin o'sha safar E-IMZO xato bermadi, shuning uchun qayta urinishning o'zi hali ishga tushmagan.
 
 ## Qanday ishga tushiriladi
 
@@ -41,27 +41,52 @@ Har run'da `operatsiyalarniKorish` ataylab o'tkazib yuboriladi (faqat qo'lda, ma
 | 25.11, 12:00 | ms | 7:37 | 9 / 1 / 0 | Faqat auksion, kontrakt 140. Xato: 5-bo'lim, 1 |
 | **25.11, 12:08** | **ms** | **16:38** | **30 / 2 / 1** | To'liq, kontrakt 141. Xatolar: 5-bo'lim, 1 va 2 |
 | 25.11, 12:25 | ms | 7:36 | 9 / 1 / 0 | Faqat auksion, kontrakt 142, faqat o'z bitimlari imzolandi. Xato: 5-bo'lim, 1 |
+| 26.11, 09:47 | ms | 17:00 | 32 / 3 / 1 | To'liq, 2 kontrakt (biri rad etildi), bekor qilishda 6 so'rov. Xatolar: 5-bo'lim 1, 2 va 2-bitimda test xatosi (eski balans ishlatilgan, tuzatildi) |
+| 26.11, 14:26 | ms | 14:01 | 33 / 2 / 1 | Savdo vaqti 1 daqiqa qilib sinaldi: 2 ta negativ ulgurmadi, savdo vaqti yana 3 daqiqa qilindi |
+| **26.11, 15:14** | **ms** | **16:55** | **32 / 3 / 1** | To'liq, kontrakt ID 201 (savdo 167), rad etilgani ID 200. Xatolar: 5-bo'lim 1, 2; yetkazish muddatida E-IMZO paroli (tuzatildi) |
 
 **Muhim tuzatish:** 12:00 dan oldingi run'larda test yangi kontrakt yaratib tasdiqlagan, lekin savdoga jadvaldagi birinchi qatorni, ya'ni **eski 80-kontraktni** chiqargan. Demak, «kontrakt → tasdiqlash → savdo» zanjiri o'sha run'larda to'liq sinalmagan. 12:00 dan boshlab zanjir aniq kontrakt bo'yicha: yuborilgan vaqt (soniyasigacha) + mahsulot + sotuvchi STIR → moderatordagi ID → savdo raqami → savdo va bitimlar faqat shu raqamda (ID 166→140, 167→141, 168→142).
 
 Avvalgi tahrirda «30 testdan 29 tasi» va «30/30» deb yozilgan edi, bu noto'g'ri: o'tkazib yuborilgan test o'tgan deb sanalgan.
 
-11:01 dagi run bo'yicha vaqt:
+26.11, 15:14 dagi run bo'yicha vaqt (logda har qator oldida soat bor):
 
-| Qadam | Vaqt |
-|---|---|
-| Kontrakt salbiy testlari | ~2:20 |
-| 1. Kontrakt yaratish | 0:19 |
-| 2. Moderator (3 rol) | 0:31 |
-| 3. Savdo vaqtini yaratish | 0:37 |
-| 4. Savdoga chiqarish | 0:45 |
-| 5. Takliflar, savatcha, salbiy holatlar | 1:25 |
-| 6. Savdo tugashini kutish va bitimlarni yig'ish | 2:47 |
-| 7. Ikki treyder ommaviy imzolashi | 0:58 |
-| 8. Admin ommaviy tasdiqlashi | 0:16 |
-| Stsenariylar h1–h8 | 1:18 / 1:30 / 0:45 (xato) / 0:42 / 0:41 / 0:55 / 1:23 / 0:18 |
+| # | Qadam | Vaqt | Natija |
+|---|---|---|---|
+| 1 | Kontrakt salbiy testlari (13 ta) | ~2:10 | ✅ |
+| 2 | 2 ta kontrakt yaratish | 0:40 | ✅ |
+| 3 | Moderator 1 rolda rad etadi → darhol «Rad etilgan» (sababsiz rad etish ham sinaladi) | 0:23 | ✅ ID 200 |
+| 4 | Moderator ikkinchisini 3 rolda tasdiqlaydi | 0:23 | ✅ ID 201 → savdo 167 |
+| 5 | Savdo vaqtini yaratish (e'lon 1 daq, savdo 3 daq) | 0:45 | ✅ |
+| 6 | E'lonni kutish, minus/0 lot, 100 lotni savdoga qo'yish (5,9 s) | 0:15 | ✅ |
+| 7 | Savdo boshlanmasdan taklif | 0:07 | ✅ qabul qilinmadi, «Seksiya vaqti emas» |
+| 8 | 12 ta taklif oynasini tayyorlash | 0:14 | ✅ |
+| 9 | Sotuvchi o'z mahsulotiga taklif bera olmasligi | 0:24 | ✅ |
+| 10 | Savdo ichida: 9 taklif, o'chirish, 101 lot, savatcha 8/1/1, barcha negativlar | 0:56 | ✅ (999 999 999 — sayt xatosi) |
+| 11 | Savdo tugashini kutish | 2:06 | |
+| 12 | Bitimlarni yig'ish | 0:48 | ✅ 9 ta, 101 lotdan 92 lot |
+| 13 | Ommaviy imzolash: trader1, trader2, admin (faqat o'z bitimlari) | 0:59 | ✅ |
+| 14 | Bekor qilish: 6 so'rov, 3 rad, 3 qabul, pul va operatsiyalar ikkala tomonda | 2:20 | ✅ |
+| 15 | 1-bitim: to'lov, shartnoma va chekni yuklash, to'liq YBHR | 0:44 | ✅ / yuklash ❌ (sayt 400) |
+| 16 | 2-bitim: to'lov, yarim YBHR, kelishuv | 1:03 | ✅ |
+| 17 | To'lov muddati +2 ish kuni: qabul va rad | 0:36 | ✅ 01.12 → 03.12 |
+| 18 | Yetkazish muddati +2 ish kuni: qabul va rad | 1:55 | ❌ E-IMZO paroli; alohida ✅ 14.12 → 16.12 |
+| 19 | Tegilmagan bitim | 0:01 | ✅ |
 
-Savdo 3 daqiqa, undan taxminan 2 daqiqasi ortib qoladi va kutiladi. Taklif berishda **E-IMZO so'ralmaydi**. Avval bu yerda «E-IMZO har imzoga 6,6 s sarflaydi» deb yozilgan edi, bu noto'g'ri: test chiqmaydigan oynani kutgan. Endi 9 ta taklif 17 s.
+Taklif berishda E-IMZO so'ralmaydi: 9 ta taklif 17 s. Savdodagi ish ~1 daqiqada tugaydi, qolgan ~2 daqiqa savdo yopilishi kutiladi (bitimlar faqat yopilgandan keyin tuziladi).
+
+## 3a. Bekor qilish (26.11, 15:14)
+
+Ikki treyder uchun bittadan brauzer ochiq turadi, test ular orasida almashadi. 6 ta so'rov yuboriladi: 2 kelishuv, 2 sotuvchi jarimasi, 2 xaridor jarimasi. Xaridor 3 tasini rad etadi (har turdan bittasi), 3 tasini qabul qiladi.
+
+| Holat | Xaridor (barcha / erkin) | Sotuvchi (barcha / erkin) | Natija |
+|---|---|---|---|
+| 3 ta rad etilgan so'rov | 0 / 0 | 0 / 0 | ✅ ortiqcha pul yechilmadi, holat «To'lov kutilmoqda» |
+| Kelishuv | 0 / +100 000 | 0 / +100 000 | ✅ |
+| Xaridor jarimasi | −100 000 / 0 | +100 000 / +200 000 | ✅ |
+| Sotuvchi jarimasi | +100 000 / +200 000 | −100 000 / 0 | ✅ |
+
+Har 6 bitimning operatsiyalari ikkala hisobda (xaridor hisobi ichida va sotuvchi broker balansida) aynan solishtiriladi: 12 tadan 12 tasi mos. Salbiy: bekor qilish formasi bo'sh / faqat tur / faqat sabab / sabab faqat probel — rad etiladi; xaridor so'rovni sababsiz rad eta olmaydi; so'rov kutilayotganda ikkinchi so'rov yuborib bo'lmaydi.
 
 ## 1. Kontrakt yaratish: salbiy holatlar
 
@@ -108,7 +133,7 @@ Begona bitim belgilanib qolsa, test imzolamasdan yiqiladi. Jadvalda o'sha paytda
 
 ## 3. Bitim holatlari (`BitimHolatlariTest`), 25.11, 12:08, ms
 
-Har bir stsenariy o'z bitimida, 8-bitimga tegilmaydi. **Xaridor hisobi ichiga kiriladi** (HKKP → Balans → STIR): bitim bo'yicha har bir operatsiya (kimdan, kimga, summa, maqsad) kutilgani bilan aynan solishtiriladi. Bekor qilishda barcha va erkin mablag' farqi ham tekshiriladi. Sotuvchi bo'yicha faqat tarixdagi jarima va zakalat tekshiriladi, balans raqamlari hali yo'q.
+Har bir stsenariy o'z bitimida, 8-bitimga tegilmaydi. **Xaridor hisobi ichiga kiriladi** (HKKP → Balans → STIR): bitim bo'yicha har bir operatsiya (kimdan, kimga, summa, maqsad) kutilgani bilan aynan solishtiriladi. Bekor qilishda barcha va erkin mablag' farqi ham tekshiriladi. 26.11 dan boshlab sotuvchi ham to'liq tekshiriladi: broker balansi (barcha / erkin) va har bir operatsiya.
 
 | # | Stsenariy | Bitim | Natija | Tekshirilgani |
 |---|---|---|---|---|

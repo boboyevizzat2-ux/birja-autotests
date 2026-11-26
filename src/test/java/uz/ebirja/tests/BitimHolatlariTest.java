@@ -7,6 +7,8 @@ import org.testng.annotations.*;
 import uz.ebirja.base.BaseTest;
 import uz.ebirja.base.Eimzo;
 import uz.ebirja.config.Config;
+import uz.ebirja.pages.BalansPage;
+import uz.ebirja.pages.Jadval;
 
 import java.io.File;
 import java.math.BigDecimal;
@@ -70,6 +72,7 @@ public class BitimHolatlariTest extends BaseTest {
         System.out.println("YBHR to'liq " + no + " holati: " + h);
         Assert.assertTrue(h.contains("Bajarildi"), no + ": to'liq YBHR tasdiqlangandan keyin holat 'Bajarildi' emas: " + h);
         hisobTekshir(no, X + ">" + X + " 900000 toliq tolovini blokirovkalash", X + ">" + S + " 1000000 yetkazilgan tovar uchun tolov");
+        sotuvchiHisobTekshir(no, X + ">" + S + " 1000000 yetkazilgan tovar uchun tolov", S + ">" + S + " 100000 zakalat pulini blokirovkadan chiqarish");
     }
 
     @Test(priority = 22, description = "2-bitim: to'lov -> YBHR (yarmi) -> kelishuv bilan bekor -> 'Qisman bajarildi'")
@@ -82,27 +85,97 @@ public class BitimHolatlariTest extends BaseTest {
         bekorQilish(no, "Kelishuv", null, "Qisman bajarildi");
         hisobTekshir(no, X + ">" + X + " 900000 toliq tolovini blokirovkalash", X + ">" + S + " 500000 yetkazilgan tovar uchun tolov",
                 X + ">" + X + " 400000 toliq tolovini blokirovkadan chiqarish", X + ">" + X + " 100000 zakalat pulini blokirovkadan chiqarish");
+        sotuvchiHisobTekshir(no, X + ">" + S + " 500000 yetkazilgan tovar uchun tolov", S + ">" + S + " 100000 zakalat pulini blokirovkadan chiqarish");
+        bekorXatolarniTekshir(no);
     }
 
-    @Test(priority = 23, description = "3-bitim: KELISHUV bilan bekor. Jarima yo'q, zakalatlar qaytadi")
-    public void h3_bekorKelishuv() {
-        String no = bitim("kelishuv", 2, "B26000258");
-        bekorQilish(no, "Kelishuv", null, "Bekor qilingan");
-        hisobTekshir(no, X + ">" + X + " 100000 zakalat pulini blokirovkadan chiqarish");
+    // ------------------------------------------------------------------ BEKOR QILISH: 6 ta so'rov (har turdan 2 ta): 3 tasi rad etiladi, 3 tasi qabul qilinadi
+    /** Rad etiladigan so'rovlar: bu bitimlar ochiq qoladi va keyin o'z stsenariysida (to'lov, muddat) davom etadi. */
+    Map<String, String> radlar() {
+        Map<String, String> m = new LinkedHashMap<>();
+        m.put(bitim("ybhrToliq", 0, "B26000256"), "Kelishuv");
+        m.put(bitim("tolovUzaytirish", 5, "B26000261"), "Sotuvchi jarimasi");
+        m.put(bitim("yetkazishUzaytirish", 6, "B26000262"), "Xaridor jarimasi");
+        return m;
     }
 
-    @Test(priority = 24, description = "4-bitim: XARIDOR JARIMASI. Xaridor zakalati sotuvchiga o'tadi")
-    public void h4_bekorXaridorJarimasi() {
-        String no = bitim("xaridorJarima", 3, "B26000259");
-        bekorQilish(no, "Xaridor jarimasi", XARIDOR_STIR, "Bekor qilingan");
-        hisobTekshir(no, X + ">" + S + " 100000 xaridorning jarima");
+    Map<String, String> qabullar() {
+        Map<String, String> m = new LinkedHashMap<>();
+        m.put(bitim("kelishuv", 2, "B26000258"), "Kelishuv");
+        m.put(bitim("xaridorJarima", 3, "B26000259"), "Xaridor jarimasi");
+        m.put(bitim("sotuvchiJarima", 4, "B26000260"), "Sotuvchi jarimasi");
+        return m;
     }
 
-    @Test(priority = 25, description = "5-bitim: SOTUVCHI JARIMASI. Sotuvchi zakalati xaridorga o'tadi")
-    public void h5_bekorSotuvchiJarimasi() {
-        String no = bitim("sotuvchiJarima", 4, "B26000260");
-        bekorQilish(no, "Sotuvchi jarimasi", SOTUVCHI_STIR, "Bekor qilingan");
-        hisobTekshir(no, S + ">" + X + " 100000 sotuvchining jarima", X + ">" + X + " 100000 zakalat pulini blokirovkadan chiqarish");
+    @Test(priority = 11, description = "Bekor qilish: 6 ta so'rov (2 kelishuv, 2 xaridor jarimasi, 2 sotuvchi jarimasi); 3 tasi rad etiladi: holat va pul o'zgarmaydi")
+    public void h0_bekorSorovlari() {
+        Map<String, String> rad = radlar(), hammasi = new LinkedHashMap<>(qabullar());
+        hammasi.putAll(rad);
+        String birinchi = hammasi.keySet().iterator().next();
+        bekorFormaSalbiy(birinchi);
+        BigDecimal[] s0 = oldingiS(), x0 = oldingiX();
+        // SOTUVCHI brauzeri: bitta sahifada ketma-ket 6 ta so'rov
+        hammasi.forEach(this::bekorSorovi);
+        // so'rov kutilayotganda sotuvchi ikkinchi marta so'rov yubora olmasligi kerak
+        String m = menyuMatni(bitimQatori("Sotish", birinchi));
+        System.out.println("BEKOR " + birinchi + " so'rov kutilayotganda sotuvchi menyusi: " + m);
+        if (m.contains("Bitimni bekor qilish")) bekorXatolar.add(birinchi + ": so'rov kutilayotganda sotuvchi menyusida yana 'Bitimni bekor qilish' bor");
+        // XARIDOR brauzeri: bitta sahifada 3 tasini rad etadi
+        login("trader2");
+        Map<String, String> kutilmoqda = sorovQatorlari(null);
+        hammasi.forEach((no, tur) -> Assert.assertTrue(kutilmoqda.getOrDefault(no, "").contains(tur), no + ": '" + tur + "' so'rovi xaridorda 'Kutilmoqda' da yo'q: " + kutilmoqda.get(no)));
+        String radBirinchi = rad.keySet().iterator().next();
+        radSababsiz(radBirinchi);
+        for (String no : rad.keySet()) sorovgaJavob("canceled-request", no, "Bekor qilish");
+        Map<String, String> qoldi = sorovQatorlari(null), radTab = sorovQatorlari("Bekor qilingan");
+        for (String no : qabullar().keySet()) Assert.assertTrue(qoldi.containsKey(no), no + ": rad etilmagan so'rov 'Kutilmoqda' dan yo'qoldi");
+        rad.forEach((no, tur) -> {
+            Assert.assertFalse(qoldi.containsKey(no), no + ": rad etilgan so'rov 'Kutilmoqda' da qoldi");
+            Assert.assertTrue(radTab.getOrDefault(no, "").contains(tur), no + ": rad etilgan '" + tur + "' so'rovi 'Bekor qilingan' tabida yo'q: " + radTab.get(no));
+            String h = norm(cut(bitimQatoriOchiq("Sotib olish", no).getText(), 200));
+            Assert.assertTrue(h.contains("To'lov kutilmoqda"), no + ": so'rov rad etilgach bitim holati o'zgardi: " + h);
+        });
+        BigDecimal[] x1 = xaridorBalans(), s1 = sotuvchiBalans();
+        pulFarqi(rad.keySet().toString(), "3 ta RAD ETILGAN", "xaridor", x0, x1, 0, 0);
+        pulFarqi(rad.keySet().toString(), "3 ta RAD ETILGAN", "sotuvchi", s0, s1, 0, 0);
+        saqla(s1, x1);
+        System.out.println("BEKOR: 6 ta so'rov yuborildi, 3 tasi RAD ETILDI " + rad + ": holat o'zgarmadi, ortiqcha pul yechilmadi ✓");
+        bekorXatolarniTekshir(birinchi);
+    }
+
+    @Test(priority = 12, dependsOnMethods = "h0_bekorSorovlari", description = "KELISHUV qabul qilinadi. Jarima yo'q, ikkala zakalat qaytadi")
+    public void h3_bekorKelishuv() { bekorTasdiq(bitim("kelishuv", 2, "B26000258"), "Kelishuv", null, "Bekor qilingan"); }
+
+    @Test(priority = 13, dependsOnMethods = "h0_bekorSorovlari", description = "XARIDOR JARIMASI qabul qilinadi. Xaridor zakalati sotuvchiga o'tadi, sotuvchining zakalati qaytadi")
+    public void h4_bekorXaridorJarimasi() { bekorTasdiq(bitim("xaridorJarima", 3, "B26000259"), "Xaridor jarimasi", XARIDOR_STIR, "Bekor qilingan"); }
+
+    @Test(priority = 14, dependsOnMethods = "h0_bekorSorovlari", description = "SOTUVCHI JARIMASI qabul qilinadi. Sotuvchi zakalati xaridorga o'tadi, xaridorning zakalati qaytadi")
+    public void h5_bekorSotuvchiJarimasi() { bekorTasdiq(bitim("sotuvchiJarima", 4, "B26000260"), "Sotuvchi jarimasi", SOTUVCHI_STIR, "Bekor qilingan"); }
+
+    @Test(priority = 15, dependsOnMethods = "h0_bekorSorovlari", description = "6 ta bitimning operatsiyalari ikkala tomon hisobida aynan mos (rad etilganlarida ortiqcha operatsiya yo'q); bekor bo'lgan bitim menyulari")
+    public void h5_bekorYakuni() {
+        Iterator<String> q = qabullar().keySet().iterator();
+        String kel = q.next(), xj = q.next(), sj = q.next();
+        // XARIDOR brauzeri
+        for (String no : radlar().keySet()) hisobTekshir(no);
+        hisobTekshir(kel, X + ">" + X + " 100000 zakalat pulini blokirovkadan chiqarish");
+        hisobTekshir(xj, X + ">" + S + " 100000 xaridorning jarima");
+        hisobTekshir(sj, S + ">" + X + " 100000 sotuvchining jarima", X + ">" + X + " 100000 zakalat pulini blokirovkadan chiqarish");
+        tugaganMenyular("trader2", "Sotib olish");
+        // SOTUVCHI brauzeri
+        for (String no : radlar().keySet()) sotuvchiHisobTekshir(no);
+        sotuvchiHisobTekshir(kel, S + ">" + S + " 100000 zakalat pulini blokirovkadan chiqarish");
+        sotuvchiHisobTekshir(xj, X + ">" + S + " 100000 xaridorning jarima", S + ">" + S + " 100000 zakalat pulini blokirovkadan chiqarish");
+        sotuvchiHisobTekshir(sj, S + ">" + X + " 100000 sotuvchining jarima");
+        tugaganMenyular("trader1", "Sotish");
+        saqla(null, null); // saqlangan balans faqat bekor qilish stsenariylari orasida ishlatiladi
+        bekorXatolarniTekshir("bekor qilish");
+    }
+
+    void tugaganMenyular(String who, String tab) {
+        login(who);
+        ochiqTab.remove(driver); // holat yangi o'qilsin
+        qabullar().forEach((no, tur) -> tugaganMenyu(no, tur, who, bitimQatoriOchiq(tab, no)));
     }
 
     @Test(priority = 26, description = "6-bitim: TO'LOV muddatini uzaytirish: qabul (sana + N ish kuni) va rad etish (sana o'zgarmaydi)")
@@ -111,6 +184,7 @@ public class BitimHolatlariTest extends BaseTest {
         muddatUzaytirish(no, "To'lov muddatini uzaytirish", "payment-request", "To'lovning oxirgi muddati", true);
         muddatUzaytirish(no, "To'lov muddatini uzaytirish", "payment-request", "To'lovning oxirgi muddati", false);
         hisobTekshir(no); // muddat uzaytirishda pul harakati bo'lmasligi kerak
+        sotuvchiHisobTekshir(no);
     }
 
     @Test(priority = 27, description = "7-bitim: to'lov -> YETKAZIB BERISH muddatini uzaytirish: qabul va rad etish")
@@ -120,6 +194,7 @@ public class BitimHolatlariTest extends BaseTest {
         muddatUzaytirish(no, "Yetkazib berish muddatini uzaytirish", "delivered-request", "Oxirgi yetkazib berish kuni", true);
         muddatUzaytirish(no, "Yetkazib berish muddatini uzaytirish", "delivered-request", "Oxirgi yetkazib berish kuni", false);
         hisobTekshir(no, X + ">" + X + " 900000 toliq tolovini blokirovkalash");
+        sotuvchiHisobTekshir(no);
     }
 
     @Test(priority = 28, description = "8-bitim: TEGILMAYDI. Holati 'To'lov kutilmoqda' va hisobda faqat bitim tuzilgandagi operatsiyalar")
@@ -129,6 +204,7 @@ public class BitimHolatlariTest extends BaseTest {
         String h = holatQanday("trader2", "Sotib olish", no);
         Assert.assertTrue(h.contains("To'lov kutilmoqda"), no + ": tegilmagan bitim 'To'lov kutilmoqda' emas: " + h);
         hisobTekshir(no);
+        sotuvchiHisobTekshir(no);
         System.out.println("TEGILMAGAN BITIM: " + no + " ✓");
     }
 
@@ -136,59 +212,87 @@ public class BitimHolatlariTest extends BaseTest {
     static final String X = XARIDOR_STIR, S = SOTUVCHI_STIR, BIRJA_STIR = "310967190";
     static final long YIGIM = 800;
 
-    /** Harf kattaligi va apostrof turlari farqini olib tashlaydi (to'lash / toʻlash / to’lash). */
-    static String tekis(String t) { return t.toLowerCase().replaceAll("['`\\u02BB\\u02BC\\u2018\\u2019]", "").replaceAll("\\s+", " "); }
+    BalansPage balansPage() { return new BalansPage(driver, base); }
+
+    /** XARIDOR hisobining ichi (Balans -> STIR): shu bitim operatsiyalari kutilganlar bilan AYNAN solishtiriladi. */
+    void hisobTekshir(String no, String... qoshimcha) {
+        login("trader2");
+        balansTabida(() -> { operatsiyalarMos("HISOB", X, no, () -> balansPage().hisobIchi(X, no), qoshimcha); return null; });
+    }
+
+    /** SOTUVCHI hisobi (trader1 -> Broker balansi): shu bitim operatsiyalari kutilganlar bilan AYNAN solishtiriladi. */
+    void sotuvchiHisobTekshir(String no, String... qoshimcha) {
+        login("trader1");
+        balansTabida(() -> { operatsiyalarMos("SOTUVCHI HISOBI", S, no, () -> balansPage().brokerOperatsiyalari(no), qoshimcha); return null; });
+    }
+
+    /** Har brauzerda balans uchun alohida tab ochiq turadi: ish sahifasi (bitimlar, so'rovlar) qayta ochilmaydi. */
+    private static final Map<WebDriver, String> BALANS_TAB = new HashMap<>();
+
+    <T> T balansTabida(java.util.function.Supplier<T> amal) {
+        String ish = driver.getWindowHandle(), tab = BALANS_TAB.get(driver);
+        if (tab == null || !driver.getWindowHandles().contains(tab)) {
+            driver.switchTo().newWindow(WindowType.TAB);
+            BALANS_TAB.put(driver, driver.getWindowHandle());
+        } else tabgaOtish(tab);
+        try { return amal.get(); } finally { tabgaOtish(ish); }
+    }
+
+    private void tabgaOtish(String tab) {
+        driver.switchTo().window(tab);
+        ((org.openqa.selenium.chrome.ChromeDriver) driver).executeCdpCommand("Page.bringToFront", Map.of());
+    }
 
     /**
-     * Xaridor hisobiga KIRADI (Balans -> STIR bosiladi), bitim raqami bo'yicha operatsiyalarni o'qiydi va
-     * kutilganlar bilan AYNAN solishtiradi: har biri "to'lovchi>oluvchi summa maqsad". Ortiqcha yoki yetishmagan operatsiya - xato.
+     * Har bir operatsiya "to'lovchi>oluvchi summa maqsad". Ortiqcha yoki yetishmagan operatsiya - xato.
      * Bitim tuzilgandagi 4 ta operatsiya (zakalat bloki, 800 yig'im: hisoblandi/ushlab qolish/to'lash) har doim kutiladi.
      */
-    void hisobTekshir(String no, String... qoshimcha) {
+    void operatsiyalarMos(String nima, String stir, String no, java.util.function.Supplier<List<String>> oqish, String... qoshimcha) {
         List<String> kutilgan = new ArrayList<>(List.of(
-                X + ">" + X + " 100000 zakalat pulini blokirovkalash",
-                X + ">" + BIRJA_STIR + " " + YIGIM + " vositachilik yigimini tolash",
-                X + ">" + X + " " + YIGIM + " vositachilik yigimini ushlab qolish",
-                X + ">" + X + " " + YIGIM + " vositachilik yigimini hisoblandi"));
+                stir + ">" + stir + " 100000 zakalat pulini blokirovkalash",
+                stir + ">" + BIRJA_STIR + " " + YIGIM + " vositachilik yigimini tolash",
+                stir + ">" + stir + " " + YIGIM + " vositachilik yigimini ushlab qolish",
+                stir + ">" + stir + " " + YIGIM + " vositachilik yigimini hisoblandi"));
         kutilgan.addAll(Arrays.asList(qoshimcha));
-        login("trader2");
-        driver.get(base + "/uz/trader/hkkp/transaction");
-        jadvalKut(driver);
-        WebElement s = visible(driver, By.cssSelector("main input[placeholder='Qidirish']"));
-        s.sendKeys(Keys.CONTROL + "a");
-        s.sendKeys(X);
-        qidiruvKut(driver, X);
-        WebElement stir = waitFor(() -> visible(driver, By.xpath("//main//tbody//a[normalize-space(.)='" + X + "']")), 10);
-        Assert.assertNotNull(stir, "Balansda " + X + " STIR havolasi yo'q");
-        realClick(driver, stir);
-        Assert.assertNotNull(waitFor(() -> driver.getCurrentUrl().contains("/" + X + "/balance") ? Boolean.TRUE : null, 10), "STIR bosilganda hisob ichi ochilmadi: " + driver.getCurrentUrl());
-        jadvalKut(driver);
-        WebElement q = waitFor(() -> visible(driver, By.cssSelector("main input[placeholder='Qidirish']")), 10);
-        q.sendKeys(Keys.CONTROL + "a");
-        q.sendKeys(no);
-        qidiruvKut(driver, no);
         List<String> qoldi = null, ortiqcha = null, topilgan = null;
-        // operatsiyalar biroz kechikib tushishi mumkin: 3 marta o'qiymiz
-        for (int u = 0; u < 3; u++) {
-            if (u > 0) { driver.navigate().refresh(); jadvalKut(driver); qidiruvKut(driver, no); }
-            topilgan = new ArrayList<>();
-            for (WebElement r : driver.findElements(By.cssSelector("main tbody tr"))) {
-                List<WebElement> td = r.findElements(By.cssSelector("td"));
-                if (td.size() < 8 || !td.get(3).getText().contains(no)) continue;
-                topilgan.add(stirOl(td.get(4).getText()) + ">" + stirOl(td.get(5).getText()) + " " + td.get(6).getText().replaceAll("[^0-9.]", "") + " " + tekis(td.get(7).getText()));
-            }
+        for (int u = 0; u < 3; u++) { // operatsiyalar biroz kechikib tushishi mumkin: 3 marta o'qiymiz
+            if (u > 0) sleep(1500);
+            topilgan = oqish.get();
             qoldi = new ArrayList<>(kutilgan);
             ortiqcha = new ArrayList<>(topilgan);
-            for (String k : kutilgan) {
-                String[] b = k.split(" ", 3);
-                for (String t : ortiqcha) if (t.startsWith(b[0] + " " + b[1] + " ") && t.contains(b[2])) { ortiqcha.remove(t); qoldi.remove(k); break; }
-            }
+            juftlash(kutilgan, qoldi, ortiqcha);
             if (qoldi.isEmpty() && ortiqcha.isEmpty()) break;
         }
-        rasm("hisob_" + no);
-        System.out.println("HISOB " + X + " " + no + ": " + topilgan.size() + " ta operatsiya, kutilgan " + kutilgan.size() + (qoldi.isEmpty() && ortiqcha.isEmpty() ? " - hammasi mos ✓" : ""));
+        boolean mos = qoldi.isEmpty() && ortiqcha.isEmpty();
+        rasm(nima + "_" + no);
+        System.out.println(nima + " " + stir + " " + no + ": " + topilgan.size() + " ta operatsiya, kutilgan " + kutilgan.size() + (mos ? " - hammasi mos ✓" : ""));
         topilgan.forEach(t -> System.out.println("     " + t));
-        Assert.assertTrue(qoldi.isEmpty() && ortiqcha.isEmpty(), no + ": xaridor hisobi mos emas. Yetishmaydi: " + qoldi + " | Ortiqcha: " + ortiqcha);
+        Assert.assertTrue(mos, no + ": " + nima + " mos emas. Yetishmaydi: " + qoldi + " | Ortiqcha: " + ortiqcha);
+    }
+
+    /** Kutilgan va topilgan operatsiyalarni juftlaydi: qoldi = yetishmaydiganlar, ortiqcha = kutilmaganlar. */
+    static void juftlash(List<String> kutilgan, List<String> qoldi, List<String> ortiqcha) {
+        for (String k : kutilgan) {
+            String[] b = k.split(" ", 3);
+            for (String t : ortiqcha) if (t.startsWith(b[0] + " " + b[1] + " ") && t.contains(b[2])) { ortiqcha.remove(t); qoldi.remove(k); break; }
+        }
+    }
+
+    /** Sotuvchi (trader1) broker balansi: [barcha, erkin, band, qarzdorlik]. */
+    BigDecimal[] sotuvchiBalans() {
+        login("trader1");
+        BigDecimal[] r = balansTabida(() -> balansPage().broker());
+        Assert.assertNotNull(r, "Sotuvchining broker balansi o'qilmadi");
+        System.out.println("BALANS (sotuvchi, broker) " + S + ": " + Arrays.toString(r));
+        return r;
+    }
+
+    /** Xaridor balansi (trader2 dan). */
+    BigDecimal[] xaridorBalans() {
+        login("trader2");
+        BigDecimal[] r = balansTabida(() -> balansPage().mijoz(XARIDOR_STIR));
+        Assert.assertNotNull(r, "Xaridor balansi o'qilmadi");
+        return r;
     }
 
     /**
@@ -261,13 +365,6 @@ public class BitimHolatlariTest extends BaseTest {
         }
     }
 
-    static String stirOl(String t) {
-        java.util.regex.Matcher m = java.util.regex.Pattern.compile("\\b([0-9]{9,14})\\b").matcher(t);
-        String r = "?";
-        while (m.find()) r = m.group(1);
-        return r;
-    }
-
     /** Faqat to'lov (alohida ishga tushirish uchun): -Dbitim.tolov=B... */
     @Test(priority = 30, enabled = false, description = "Faqat to'lov")
     public void tolovQilish() { tolov(bitim("tolov", 0, "B26000256")); }
@@ -280,7 +377,7 @@ public class BitimHolatlariTest extends BaseTest {
             login(who);
             for (String no : System.getProperty("bitimlar", "B26000242").split(",")) {
                 System.out.println("=== " + who + " " + no);
-                for (String op : operatsiyalar(no.trim())) System.out.println("   " + op);
+                for (String op : balansPage().brokerQatorlari(no.trim())) System.out.println("   " + op);
             }
         }
     }
@@ -289,26 +386,25 @@ public class BitimHolatlariTest extends BaseTest {
 
     void tolov(String no) {
         login("trader2");
-        BigDecimal[] oldin = balans(XARIDOR_STIR);
+        BigDecimal[] oldin = balansPage().mijoz(XARIDOR_STIR);
         WebElement row = bitimQatori("Sotib olish", no);
         Assert.assertTrue(norm(row.getText()).contains("To'lov kutilmoqda"), no + " 'To'lov kutilmoqda' holatida emas: " + cut(row.getText(), 200));
         menyu(row, "To'lov qilish");
         dialogTugma("To'lov qilish");
         Eimzo.typePassword(10);
-        sleep(1500);
-        if (toasts(driver).stream().anyMatch(x -> x.contains("Parol"))) { // E-IMZO parolni qabul qilmasa bir marta qayta
+        if (xabarKut().stream().anyMatch(x -> x.contains("Parol"))) { // E-IMZO parolni qabul qilmasa bir marta qayta
             System.out.println("TO'LOV " + no + ": parol xatosi, qayta urinish");
             menyu(bitimQatori("Sotib olish", no), "To'lov qilish");
             dialogTugma("To'lov qilish");
             Eimzo.typePassword(10);
-            sleep(1500);
+            xabarKut();
         }
         System.out.println("TO'LOV " + no + " xabarlar: " + toasts(driver));
         // holat jadvalda biroz kechikib yangilanadi: 15 s gacha kutamiz
         String h = "";
-        for (int u = 0; u < 4 && !h.contains("To'langan"); u++) { if (u > 0) sleep(3000); h = holatQanday(null, "Sotib olish", no); }
+        for (int u = 0; u < 7 && !h.contains("To'langan"); u++) { if (u > 0) sleep(1500); h = holatQanday(null, "Sotib olish", no); }
         Assert.assertTrue(h.contains("To'langan"), no + ": to'lovdan keyin holat 'To'langan' emas: " + h);
-        BigDecimal[] keyin = balans(XARIDOR_STIR);
+        BigDecimal[] keyin = balansPage().mijoz(XARIDOR_STIR);
         System.out.println("TO'LOV " + no + " xaridor balansi (barcha/erkin/band/qarz): " + Arrays.toString(oldin) + " -> " + Arrays.toString(keyin));
         // to'lov = bitim summasi - oldindan band qilingan zakalat (1 000 000 - 100 000 = 900 000)
         if (oldin != null && keyin != null) {
@@ -318,56 +414,167 @@ public class BitimHolatlariTest extends BaseTest {
         }
     }
 
-    /**
-     * Sotuvchi bekor qilish so'rovini yuboradi, xaridor "Bekor qilish so'rovi" sahifasida tasdiqlaydi.
-     * jarimaStir: jarimaga tushgan tomon (null = kelishuv: hech kimdan jarima olinmasligi kerak).
-     */
-    void bekorQilish(String no, String tur, String jarimaStir, String kutilganHolat) {
-        // operatsiyalar sotuvchi (broker) tarixidan tekshiriladi: jarima ham, kelishuv ham shu yerda ko'rinadi
-        String kimBalans = "trader1";
-        login(kimBalans);
-        List<String> opOldin = operatsiyalar(no);
+    /** Bekor qilishning salbiy holatlarida topilgan xatolar: stsenariy oxirida hammasi birga tekshiriladi. */
+    List<String> bekorXatolar = new ArrayList<>();
+
+    void bekorXatolarniTekshir(String no) {
+        List<String> x = new ArrayList<>(bekorXatolar);
+        bekorXatolar.clear();
+        Assert.assertTrue(x.isEmpty(), no + ": bekor qilishning salbiy holatlari: " + x);
+    }
+
+    /** Oldingi bekor qilishdan keyingi balans: shu orada boshqa amal bo'lmaydi, shuning uchun keyingi stsenariyning boshlang'ich balansi bo'ladi. Bir marta ishlatiladi. */
+    private BigDecimal[] saqlanganS, saqlanganX;
+
+    void saqla(BigDecimal[] s, BigDecimal[] x) { saqlanganS = s; saqlanganX = x; }
+
+    BigDecimal[] oldingiS() { BigDecimal[] r = saqlanganS; saqlanganS = null; return r != null ? r : sotuvchiBalans(); }
+
+    BigDecimal[] oldingiX() { BigDecimal[] r = saqlanganX; saqlanganX = null; return r != null ? r : xaridorBalans(); }
+
+    /** Imzodan keyingi xabar (toast) chiqishini kutadi (ko'pi bilan 5 s). */
+    List<String> xabarKut() {
+        waitFor(() -> toasts(driver).stream().anyMatch(x -> !x.isBlank() && !x.startsWith("Loading")) ? Boolean.TRUE : null, 5);
+        return toasts(driver);
+    }
+
+    /** "Bitimni bekor qilish" formasi: to'ldirilmagan holatlar (bitta oynada). E-IMZO imzosi to'sib qo'yiladi, so'rov yuborilmaydi. */
+    void bekorFormaSalbiy(String no) {
         login("trader1");
-        WebElement row = bitimQatori("Sotish", no);
-        menyu(row, "Bitimni bekor qilish");
+        menyu(bitimQatori("Sotish", no), "Bitimni bekor qilish");
+        eimzoTosish(driver);
+        By sabab = By.cssSelector("textarea[name=reason]");
+        bekorFormaRad(no, "tur ham, sabab ham bo'sh", 2);
+        dialogEl(sabab).sendKeys("Avtotest");
+        bekorFormaRad(no, "faqat sabab", 1);
+        dialogEl(sabab).sendKeys(Keys.CONTROL + "a");
+        dialogEl(sabab).sendKeys(Keys.DELETE);
+        dialogSelect("Kelishuv");
+        bekorFormaRad(no, "faqat tur", 1);
+        dialogEl(sabab).sendKeys("   ");
+        bekorFormaRad(no, "sabab faqat probel", 1);
+        ochiqTab.remove(driver); // keyingi safar sahifa qayta ochiladi (imzo to'sig'i olinadi)
+        // so'rov yuborilmaganini tekshiramiz
+        login("trader2");
+        if (sorovQatorlari(null).containsKey(no)) bekorXatolar.add("salbiy holatlardan keyin 'Kutilmoqda' da so'rov paydo bo'ldi");
+        login("trader1");
+    }
+
+    /** Formani yuboradi: aynan shuncha "Majburiy maydon" yozuvi chiqishi va imzo so'ralmasligi kerak. */
+    void bekorFormaRad(String no, String holat, int majburiySoni) {
+        long oldin = eimzoUrinishlari(driver);
+        dialogTugma("Tasdiqlash");
+        java.util.function.IntSupplier soni = () -> dialog() == null ? -1 : (dialog().getText() + " ").split("Majburiy maydon", -1).length - 1;
+        sleep(400);
+        waitFor(() -> eimzoUrinishlari(driver) > oldin || soni.getAsInt() == majburiySoni ? Boolean.TRUE : null, 4);
+        boolean rad = eimzoUrinishlari(driver) == oldin && soni.getAsInt() == majburiySoni;
+        System.out.println("BEKOR-SALBIY " + no + " (" + holat + "): " + (rad ? "rad etildi ✓" : "RAD ETILMADI, 'Majburiy maydon' " + soni.getAsInt() + "/" + majburiySoni + ", imzo so'rovlari " + (eimzoUrinishlari(driver) - oldin)));
+        if (!rad) bekorXatolar.add("bekor qilish formasi qabul qilindi: " + holat);
+    }
+
+    /** "Bekor qilish so'rovi" sahifasidagi (xaridor) qatorlar: bitim raqami -> qator matni (birinchi sahifa, yangilari tepada). tab=null - Kutilmoqda. */
+    Map<String, String> sorovQatorlari(String tab) {
+        driver.get(base + "/uz/trader/contracts/canceled-request");
+        jadvalKut(driver);
+        if (tab != null) Assert.assertTrue(Jadval.tab(driver, tab), "'" + tab + "' tabi yo'q");
+        sleep(700);
+        Map<String, String> r = new LinkedHashMap<>();
+        for (WebElement row : driver.findElements(Jadval.QATORLAR)) {
+            String t = clean(row.getText());
+            java.util.regex.Matcher m = java.util.regex.Pattern.compile("[AB]\\d{8}").matcher(t);
+            if (m.find()) r.putIfAbsent(m.group(), t);
+        }
+        return r;
+    }
+
+    /** Sotuvchi "Bitimni bekor qilish" so'rovini yuboradi va E-IMZO bilan imzolaydi. */
+    List<String> bekorSorovi(String no, String tur) {
+        List<String> x = bekorSoroviBirMarta(no, tur);
+        if (parolXatosi(x)) { System.out.println("BEKOR " + no + ": E-IMZO paroli qabul qilinmadi, so'rov qayta yuboriladi"); sleep(3000); x = bekorSoroviBirMarta(no, tur); }
+        Assert.assertFalse(parolXatosi(x), no + ": bekor qilish so'rovi imzolanmadi: " + x);
+        return x;
+    }
+
+    /** E-IMZO parolni qabul qilmadi (hech narsa yuborilmagan, qayta urinish xavfsiz). */
+    static boolean parolXatosi(List<String> xabar) { return xabar.stream().anyMatch(t -> t.contains("Parol") || t.contains("tasdiqlanmagan")); }
+
+    List<String> bekorSoroviBirMarta(String no, String tur) {
+        login("trader1");
+        menyu(bitimQatoriOchiq("Sotish", no), "Bitimni bekor qilish");
         dialogSelect(tur);
         dialogEl(By.cssSelector("textarea[name=reason]")).sendKeys("Avtotest: " + tur);
         rasm("bekor_" + no + "_forma");
         dialogTugma("Tasdiqlash");
         Eimzo.typePassword(10);
-        sleep(1500);
-        System.out.println("BEKOR (" + tur + ") " + no + " so'rov yuborildi. Xabarlar: " + toasts(driver));
+        List<String> x = xabarKut();
+        System.out.println("BEKOR (" + tur + ") " + no + " so'rov yuborildi. Xabarlar: " + x);
+        return x;
+    }
+
+    /** Qator ⋮ menyusidagi bandlar. */
+    String menyuMatni(WebElement row) {
+        List<WebElement> tds = row.findElements(By.cssSelector("td"));
+        jsClick(driver, tds.get(tds.size() - 1).findElement(By.cssSelector("button")));
+        WebElement it = waitFor(() -> lastVisible(driver, By.xpath("//*[normalize-space(text())='Shartnomani yuklab olish']")), 5);
+        Assert.assertNotNull(it, "⋮ menyusi ochilmadi");
+        return norm(clean((String) ((JavascriptExecutor) driver).executeScript("return arguments[0].parentElement.parentElement.innerText", it)));
+    }
+
+    static long[] farq(BigDecimal[] a, BigDecimal[] b) { return new long[]{b[0].subtract(a[0]).longValueExact(), b[1].subtract(a[1]).longValueExact()}; }
+
+    void pulFarqi(String no, String nima, String kim, BigDecimal[] oldin, BigDecimal[] keyin, long kBarcha, long kErkin) {
+        long[] f = farq(oldin, keyin);
+        boolean ok = f[0] == kBarcha && f[1] == kErkin;
+        System.out.println("BALANS FARQI (" + nima + ") " + no + " " + kim + ": barcha " + f[0] + " (kutilgan " + kBarcha + "), erkin " + f[1] + " (kutilgan " + kErkin + ")" + (ok ? " ✓" : ""));
+        Assert.assertTrue(ok, no + " " + nima + ": " + kim + " balansi noto'g'ri o'zgardi: barcha " + f[0] + "/" + kBarcha + ", erkin " + f[1] + "/" + kErkin);
+    }
+
+    /** Sotuvchi so'rov yuboradi va xaridor darhol TASDIQLAYDI (bitta bitim). */
+    void bekorQilish(String no, String tur, String jarimaStir, String kutilganHolat) {
+        // boshlang'ich balans YANGI o'qiladi: oldingi stsenariydan keyin to'lov va YBHR bo'lgan
+        saqla(sotuvchiBalans(), xaridorBalans());
+        bekorSorovi(no, tur);
+        bekorTasdiq(no, tur, jarimaStir, kutilganHolat);
+    }
+
+    /**
+     * Xaridor kutilayotgan bekor qilish so'rovini TASDIQLAYDI; bitim holati va pul IKKALA tomonda tekshiriladi.
+     * jarimaStir: jarimaga tushgan tomon (null = kelishuv: hech kimdan jarima olinmaydi).
+     */
+    void bekorTasdiq(String no, String tur, String jarimaStir, String kutilganHolat) {
+        BigDecimal[] s0 = oldingiS(), x0 = oldingiX();
         login("trader2");
-        BigDecimal[] b0 = balans(XARIDOR_STIR);
         sorovgaJavob("canceled-request", no, "Tasdiqlash");
-        String h = holatQanday(null, "Sotib olish", no);
+        boolean xJarima = XARIDOR_STIR.equals(jarimaStir);
+        BigDecimal[] x1 = xaridorBalans(), s1 = sotuvchiBalans();
+        // XARIDOR: kelishuv - zakalat (va to'langan qoldiq) qaytadi; xaridor jarimasi - 100 000 ketadi; sotuvchi jarimasi - 100 000 keladi va zakalat qaytadi
+        pulFarqi(no, tur, "xaridor", x0, x1, jarimaStir == null ? 0 : xJarima ? -JARIMA : JARIMA,
+                jarimaStir == null ? (kutilganHolat.startsWith("Qisman") ? 500_000 : JARIMA) : xJarima ? 0 : 2 * JARIMA);
+        // SOTUVCHI: kelishuv - zakalat qaytadi; xaridor jarimasi - 100 000 keladi va zakalat qaytadi; sotuvchi jarimasi - 100 000 (zakalat) ketadi
+        pulFarqi(no, tur, "sotuvchi", s0, s1, jarimaStir == null ? 0 : xJarima ? JARIMA : -JARIMA,
+                jarimaStir == null ? JARIMA : xJarima ? 2 * JARIMA : 0);
+        saqla(s1, x1);
+        // holat sotuvchi brauzeridagi bitimlar sahifasidan o'qiladi (xaridorda so'rovlar sahifasi ochiq qoladi)
+        login("trader1");
+        ochiqTab.remove(driver);
+        String h = norm(cut(bitimQatori("Sotish", no).getText(), 200));
         System.out.println("BEKOR (" + tur + ") " + no + " holati: " + h);
         Assert.assertTrue(h.contains(kutilganHolat), no + ": bekor qilingandan keyin holat '" + kutilganHolat + "' emas: " + h);
-        // xaridor balansi (barcha, erkin) farqi: kelishuv - zakalat (va to'langan qoldiq) qaytadi; xaridor jarimasi - barcha kamayadi; sotuvchi jarimasi - jarima + zakalat qo'shiladi
-        long kBarcha = jarimaStir == null ? 0 : XARIDOR_STIR.equals(jarimaStir) ? -JARIMA : JARIMA;
-        long kErkin = jarimaStir == null ? (kutilganHolat.startsWith("Qisman") ? 500_000 : JARIMA) : XARIDOR_STIR.equals(jarimaStir) ? 0 : 2 * JARIMA;
-        BigDecimal[] b1 = balans(XARIDOR_STIR);
-        Assert.assertTrue(b0 != null && b1 != null, no + ": xaridor balansi o'qilmadi");
-        long fBarcha = b1[0].subtract(b0[0]).longValue(), fErkin = b1[1].subtract(b0[1]).longValue();
-        System.out.println("BALANS FARQI (" + tur + ") " + no + ": barcha " + fBarcha + " (kutilgan " + kBarcha + "), erkin " + fErkin + " (kutilgan " + kErkin + ")" + (fBarcha == kBarcha && fErkin == kErkin ? " ✓" : ""));
-        Assert.assertTrue(fBarcha == kBarcha && fErkin == kErkin, no + " " + tur + ": xaridor balansi noto'g'ri o'zgardi: barcha " + fBarcha + "/" + kBarcha + ", erkin " + fErkin + "/" + kErkin);
-        login(kimBalans);
-        List<String> yangi = new ArrayList<>(operatsiyalar(no));
-        yangi.removeAll(opOldin);
-        System.out.println("BEKOR (" + tur + ") " + no + " yangi operatsiyalar: " + yangi);
-        if (jarimaStir == null) {
-            // KELISHUV: hech kimdan jarima yo'q, zakalat blokdan chiqadi
-            Assert.assertTrue(yangi.stream().noneMatch(op -> op.toLowerCase().contains("jarima")), no + ": kelishuvda jarima olindi: " + yangi);
-            Assert.assertTrue(yangi.stream().anyMatch(op -> op.contains("blokirovkadan chiqarish")), no + ": kelishuvdan keyin zakalat blokdan chiqmadi: " + yangi);
-            System.out.println("KELISHUV " + no + ": jarima yo'q, zakalat qaytdi ✓");
-            return;
-        }
-        // JARIMA = kontraktdagi zakalat, jarimaga tushgan tomondan ikkinchi tomonga
-        String kutilgan = String.format("%,d", JARIMA).replaceAll("[^0-9]", " ");
-        String boshqa = XARIDOR_STIR.equals(jarimaStir) ? SOTUVCHI_STIR : XARIDOR_STIR;
-        boolean topildi = yangi.stream().anyMatch(op -> op.toLowerCase().contains("jarima") && op.contains("| " + jarimaStir + " | " + boshqa + " | " + kutilgan + " |"));
-        Assert.assertTrue(topildi, no + ": " + kutilgan + " so'mlik jarima " + jarimaStir + " dan " + boshqa + " ga o'tmadi. Yangi operatsiyalar: " + yangi);
-        System.out.println("JARIMA (" + tur + ") " + no + ": " + kutilgan + " so'm " + jarimaStir + " -> " + boshqa + " ✓");
+    }
+
+    /** Bekor bo'lgan bitimda to'lash, qayta bekor qilish va muddat uzaytirish bo'lmasligi kerak. */
+    void tugaganMenyu(String no, String tur, String kim, WebElement row) {
+        String m = menyuMatni(row);
+        System.out.println("BEKOR (" + tur + ") " + no + " tugagan bitim menyusi, " + kim + ": " + m);
+        for (String band : new String[]{"To'lov qilish", "Bitimni bekor qilish", "muddatini uzaytirish"})
+            if (m.contains(band)) bekorXatolar.add(no + " (" + tur + "): " + kim + " menyusida hali ham '" + band + "' bor");
+    }
+
+    /** Bitim holati yozuvi ("Bitim holati" ustuni). */
+    String bitimHolati(String tab, String no) {
+        String h = ustun(bitimQatori(tab, no), "bitim holati");
+        Assert.assertTrue(!h.isBlank(), no + ": 'Bitim holati' ustuni o'qilmadi");
+        return h;
     }
 
     /**
@@ -380,13 +587,19 @@ public class BitimHolatlariTest extends BaseTest {
         login("trader1");
         WebElement row = bitimQatori("Sotish", no);
         java.time.LocalDate eski = sana(row, sanaUstuni);
-        menyu(row, band);
-        dialogEl(By.name("extensionDay")).sendKeys(String.valueOf(n));
-        dialogEl(By.cssSelector("textarea[name=description]")).sendKeys("Avtotest: " + band + (qabul ? "" : " (rad etiladi)"));
-        dialogTugma("Saqlash");
-        Eimzo.typePassword(10);
-        sleep(1500);
-        System.out.println(band.toUpperCase() + " " + no + ": " + n + " ish kuni so'raldi. Xabarlar: " + toasts(driver));
+        List<String> x = null;
+        for (int u = 0; u < 2; u++) { // E-IMZO paroli ba'zan "noto'g'ri" deb qaytadi: so'rov bir marta qayta yuboriladi
+            if (u > 0) { System.out.println(band.toUpperCase() + " " + no + ": E-IMZO paroli qabul qilinmadi, so'rov qayta yuboriladi"); sleep(3000); row = bitimQatori("Sotish", no); }
+            menyu(row, band);
+            dialogEl(By.name("extensionDay")).sendKeys(String.valueOf(n));
+            dialogEl(By.cssSelector("textarea[name=description]")).sendKeys("Avtotest: " + band + (qabul ? "" : " (rad etiladi)"));
+            dialogTugma("Saqlash");
+            Eimzo.typePassword(10);
+            x = xabarKut();
+            System.out.println(band.toUpperCase() + " " + no + ": " + n + " ish kuni so'raldi. Xabarlar: " + x);
+            if (!parolXatosi(x)) break;
+        }
+        Assert.assertFalse(parolXatosi(x), no + ": '" + band + "' so'rovi imzolanmadi: " + x);
         login("trader2");
         sorovgaJavob(sorovSahifa, no, qabul ? "Tasdiqlash" : "Bekor qilish");
         String tab = qabul ? "Qabul qilingan" : "Bekor qilingan";
@@ -441,7 +654,6 @@ public class BitimHolatlariTest extends BaseTest {
         driver.get(base + "/uz/trader/hkkp/ybhr");
         jadvalKut(driver);
         jsClick(driver, waitFor(() -> visible(driver, By.xpath("//main//button[contains(normalize-space(.),'YBHR yuborish')]")), 20));
-        sleep(2500);
         WebElement sh = dialogEl(By.cssSelector("input[placeholder='Shartnoma raqamini kiriting']"));
         sh.sendKeys(no);
         sh.sendKeys(Keys.ENTER);
@@ -452,9 +664,8 @@ public class BitimHolatlariTest extends BaseTest {
         Assert.assertNotNull(yuklandi, "YBHR: shartnoma ma'lumoti yuklanmadi");
         dialogEl(By.name("factureNumber")).sendKeys("AT-" + no);
         jsClick(driver, dialogEl(By.name("factureDate")));
-        sleep(1000);
         String kun = String.valueOf(java.time.LocalDate.now().getDayOfMonth());
-        WebElement day = lastVisible(driver, By.xpath("//*[contains(@class,'calendar') or contains(@class,'picker') or contains(@class,'absolute')]//*[normalize-space(text())='" + kun + "']"));
+        WebElement day = waitFor(() -> lastVisible(driver,By.xpath("//*[contains(@class,'calendar') or contains(@class,'picker') or contains(@class,'absolute')]//*[normalize-space(text())='" + kun + "']")), 3);
         Assert.assertNotNull(day, "YBHR: kalendarda bugungi kun topilmadi");
         jsClick(driver, day);
         sleep(600);
@@ -475,8 +686,7 @@ public class BitimHolatlariTest extends BaseTest {
         for (int u = 0; u < 2; u++) {
             dialogTugma("Yuborish");
             Eimzo.typePassword(10);
-            sleep(1500);
-            xabar = toasts(driver);
+            xabar = xabarKut();
             System.out.println("YBHR " + no + " (" + miqdor + ") yuborildi. Xabarlar: " + xabar);
             if (xabar.stream().noneMatch(x -> x.contains("Parol") || x.contains("tasdiqlanmagan"))) break;
             System.out.println("YBHR " + no + ": E-IMZO paroli noto'g'ri tushdi, qayta yuboriladi");
@@ -509,29 +719,39 @@ public class BitimHolatlariTest extends BaseTest {
         }
         Assert.assertNotNull(btn, "YBHR: " + no + " uchun 'Tasdiqlash' topilmadi");
         jsClick(driver, btn);
-        sleep(1500);
-        WebElement ok = lastVisible(driver, By.xpath("//*[@role='dialog' or contains(@class,'modal')]//button[normalize-space(.)='Tasdiqlash' or normalize-space(.)='Ha']"));
+        WebElement ok = waitFor(() -> lastVisible(driver, By.xpath("//*[@role='dialog' or contains(@class,'modal')]//button[normalize-space(.)='Tasdiqlash' or normalize-space(.)='Ha']")), 3);
         if (ok != null) jsClick(driver, ok);
         Eimzo.typePassword(10);
-        sleep(1500);
-        System.out.println("YBHR " + no + " xaridor tasdiqladi. Xabarlar: " + toasts(driver));
+        System.out.println("YBHR " + no + " xaridor tasdiqladi. Xabarlar: " + xabarKut());
     }
 
-    /** So'rovlar sahifasida (Kutilmoqda) bitimni topib "Tasdiqlash" yoki "Bekor qilish" (rad etish) bosadi. */
-    void sorovgaJavob(String sahifa, String no, String tugma) {
-        driver.get(base + "/uz/trader/contracts/" + sahifa);
+    /** Xaridor bekor qilish so'rovini SABABSIZ rad etmoqchi bo'ladi: sayt qabul qilmasligi kerak (imzo to'sib qo'yilgan). */
+    void radSababsiz(String no) {
+        driver.get(base + "/uz/trader/contracts/canceled-request");
         jadvalKut(driver);
         WebElement s = visible(driver, By.cssSelector("main input[placeholder='Qidirish']"));
         if (s != null) { s.sendKeys(no); qidiruvKut(driver, no); }
-        WebElement row = waitFor(() -> rowWith(no), 30);
-        Assert.assertNotNull(row, sahifa + ": " + no + " so'rovi 'Kutilmoqda' ro'yxatida yo'q");
-        System.out.println(sahifa + " qatori: " + cut(row.getText(), 300));
-        rasm(sahifa + "_" + no);
+        WebElement row = waitFor(() -> rowWith(no), 20);
+        Assert.assertNotNull(row, no + ": bekor qilish so'rovi 'Kutilmoqda' da yo'q");
+        jsClick(driver, sorovTugmasi(row, "canceled-request", no, "Bekor qilish"));
+        waitFor(this::dialog, 3);
+        sleep(300);
+        eimzoTosish(driver);
+        dialogTugma("Yuborish");
+        waitFor(() -> eimzoUrinishlari(driver) > 0 || (dialog() != null && dialog().getText().contains("Majburiy")) ? Boolean.TRUE : null, 5);
+        boolean rad = eimzoUrinishlari(driver) == 0 && dialog() != null && dialog().getText().contains("Majburiy");
+        System.out.println("BEKOR-SALBIY " + no + " (so'rovni sababsiz rad etish): " + (rad ? "qabul qilinmadi ✓" : "QABUL QILINDI, imzo so'rovlari " + eimzoUrinishlari(driver)) + " " + toasts(driver));
+        if (!rad) bekorXatolar.add("xaridor so'rovni sababsiz rad eta oldi (imzo so'raldi)");
+        driver.navigate().refresh(); // imzo to'sig'i olinadi
+        jadvalKut(driver);
+    }
+
+    /** So'rov qatoridagi "Tasdiqlash" / "Bekor qilish" tugmasi (matnli yoki shu nomli ustundagi ikonka). */
+    WebElement sorovTugmasi(WebElement row, String sahifa, String no, String tugma) {
         WebElement btn = null;
         for (WebElement b : row.findElements(By.cssSelector("button")))
             try { if (norm(b.getText()).contains(tugma) || tugma.equals(b.getAttribute("title"))) btn = b; } catch (Exception ignore) {}
         if (btn == null) {
-            // tugma ustunidagi tugma (matnsiz ikonka)
             List<String> heads = new ArrayList<>();
             for (WebElement th : driver.findElements(By.cssSelector("main thead th"))) heads.add(norm(th.getText()));
             int idx = heads.indexOf(tugma);
@@ -539,8 +759,36 @@ public class BitimHolatlariTest extends BaseTest {
             if (idx >= 0 && idx < tds.size()) btn = tds.get(idx).findElements(By.cssSelector("button, svg")).stream().findFirst().orElse(null);
         }
         Assert.assertNotNull(btn, sahifa + ": " + no + " qatorida '" + tugma + "' tugmasi topilmadi");
+        return btn;
+    }
+
+    /** So'rovlar sahifasida (Kutilmoqda) bitimni topib "Tasdiqlash" yoki "Bekor qilish" (rad etish) bosadi. */
+    void sorovgaJavob(String sahifa, String no, String tugma) {
+        List<String> x = sorovgaJavobBirMarta(sahifa, no, tugma);
+        if (parolXatosi(x)) { System.out.println(sahifa + " " + no + ": E-IMZO paroli qabul qilinmadi, qayta"); sleep(3000); x = sorovgaJavobBirMarta(sahifa, no, tugma); }
+        Assert.assertFalse(parolXatosi(x), no + ": so'rovga javob imzolanmadi: " + x);
+    }
+
+    List<String> sorovgaJavobBirMarta(String sahifa, String no, String tugma) {
+        List<String> xabar;
+        // so'rovlar sahifasi ('Kutilmoqda') allaqachon ochiq bo'lsa, qayta ochilmaydi
+        String u = driver.getCurrentUrl();
+        if (!u.contains("/contracts/" + sahifa) || u.contains("state=")) { driver.get(base + "/uz/trader/contracts/" + sahifa); jadvalKut(driver); }
+        Jadval.qidir(driver, no);
+        WebElement row = waitFor(() -> rowWith(no), 4);
+        if (row == null) {
+            driver.get(base + "/uz/trader/contracts/" + sahifa);
+            jadvalKut(driver);
+            Jadval.qidir(driver, no);
+            row = waitFor(() -> rowWith(no), 30);
+        }
+        Assert.assertNotNull(row, sahifa + ": " + no + " so'rovi 'Kutilmoqda' ro'yxatida yo'q");
+        System.out.println(sahifa + " qatori: " + cut(row.getText(), 300));
+        rasm(sahifa + "_" + no);
+        WebElement btn = sorovTugmasi(row, sahifa, no, tugma);
         jsClick(driver, btn);
-        sleep(1200);
+        waitFor(this::dialog, 3);
+        sleep(300);
         // tasdiqlash / rad etish oynasi: sabab maydoni bo'lsa to'ldiriladi, keyin oynadagi tasdiqlovchi tugma bosiladi
         WebElement oyna = dialog();
         if (oyna != null) {
@@ -556,8 +804,8 @@ public class BitimHolatlariTest extends BaseTest {
             if (ok != null) { System.out.println(sahifa + ": oynada '" + ok.getText() + "' bosildi"); jsClick(driver, ok); }
         }
         Eimzo.typePassword(10);
-        sleep(1500);
-        System.out.println(sahifa + ": " + no + " tasdiqlandi. Xabarlar: " + toasts(driver));
+        System.out.println(sahifa + ": " + no + " '" + tugma + "' qilindi. Xabarlar: " + (xabar = xabarKut()));
+        return xabar;
     }
 
     // ================================================================== YORDAMCHILAR
@@ -572,11 +820,21 @@ public class BitimHolatlariTest extends BaseTest {
 
     void login(String who) { kim(who); }
 
-    static String norm(String s) { return s == null ? "" : s.replaceAll("[‘’`ʼ]", "'").replace(" ", " "); }
+    static String norm(String s) { return Jadval.norm(s); }
 
-    WebElement rowWith(String text) {
-        for (WebElement r : driver.findElements(By.cssSelector("main tbody tr"))) try { if (r.getText().contains(text)) return r; } catch (Exception ignore) {}
-        return null;
+    WebElement rowWith(String text) { return Jadval.qator(driver, text); }
+
+    /** Brauzerda qaysi bitimlar tabi ochiq turibdi. */
+    private final Map<WebDriver, String> ochiqTab = new HashMap<>();
+
+    /** bitimQatori kabi, lekin bitimlar sahifasi shu tabda ochiq turgan bo'lsa qayta ochmaydi, faqat qidiradi. */
+    WebElement bitimQatoriOchiq(String tab, String no) {
+        if (tab.equals(ochiqTab.get(driver)) && driver.getCurrentUrl().matches(".*/contracts/(client|brokers)-contracts.*")) {
+            Jadval.qidir(driver, no);
+            WebElement r = waitFor(() -> rowWith(no), 5);
+            if (r != null) return r;
+        }
+        return bitimQatori(tab, no);
     }
 
     WebElement bitimQatori(String tab, String no) {
@@ -592,10 +850,10 @@ public class BitimHolatlariTest extends BaseTest {
         }
         Assert.assertNotNull(t, "Shartnomalar sahifasi ochilmadi: " + driver.getCurrentUrl());
         jsClick(driver, t);
-        sleep(3000);
-        WebElement s = visible(driver, By.cssSelector("main input[placeholder='Qidirish']"));
-        if (s != null) { s.sendKeys(no); qidiruvKut(driver, no); }
+        jadvalKut(driver);
+        Jadval.qidir(driver, no);
         WebElement r = waitFor(() -> rowWith(no), 30);
+        ochiqTab.put(driver, tab);
         Assert.assertNotNull(r, no + " '" + tab + "' tabida topilmadi");
         return r;
     }
@@ -618,11 +876,11 @@ public class BitimHolatlariTest extends BaseTest {
     void menyu(WebElement row, String band) {
         List<WebElement> tds = row.findElements(By.cssSelector("td"));
         jsClick(driver, tds.get(tds.size() - 1).findElement(By.cssSelector("button")));
-        sleep(1200);
-        WebElement it = lastVisible(driver, By.xpath("//*[normalize-space(text())=\"" + band + "\"]"));
+        WebElement it = waitFor(() -> lastVisible(driver, By.xpath("//*[normalize-space(text())=\"" + band + "\"]")), 4);
         Assert.assertNotNull(it, "Menyuda '" + band + "' yo'q");
         jsClick(driver, it);
-        sleep(2000);
+        waitFor(this::dialog, 5);
+        sleep(400);
     }
 
     WebElement dialog() {
@@ -641,64 +899,16 @@ public class BitimHolatlariTest extends BaseTest {
     void dialogSelect(String option) {
         WebElement in = dialogEl(By.cssSelector("input[id^='react-select']"));
         in.sendKeys(Keys.ARROW_DOWN);
-        sleep(1200);
-        WebElement op = lastVisible(driver, By.xpath("//*[contains(@id,'-option-')][normalize-space(.)=\"" + option + "\"]"));
+        WebElement op = waitFor(() -> lastVisible(driver, By.xpath("//*[contains(@id,'-option-')][normalize-space(.)=\"" + option + "\"]")), 4);
         Assert.assertNotNull(op, "Ro'yxatda '" + option + "' yo'q");
         jsClick(driver, op);
-        sleep(800);
+        sleep(300);
     }
 
     void dialogTugma(String text) {
         WebElement b = waitFor(() -> lastVisible(driver, By.xpath("//*[@role='dialog' or contains(@class,'modal')]//button[normalize-space(.)=\"" + text + "\"]")), 10);
         Assert.assertNotNull(b, "Oynada '" + text + "' tugmasi yo'q");
         jsClick(driver, b);
-    }
-
-    /** HKKP -> Balans: STIR bo'yicha [barcha, erkin, band, qarzdorlik]. Avval "Mijozlar balansi", keyin "Broker balansi". */
-    BigDecimal[] balans(String stir) {
-        driver.get(base + "/uz/trader/hkkp/transaction");
-        jadvalKut(driver);
-        for (String tab : new String[]{"Mijozlar balansi", "Broker balansi"}) {
-            WebElement b = visible(driver, By.xpath("//main//*[normalize-space(text())='" + tab + "']"));
-            if (b != null) { jsClick(driver, b); jadvalKut(driver); }
-            WebElement s = visible(driver, By.cssSelector("main input[placeholder='Qidirish']"));
-            if (s != null) { s.sendKeys(Keys.CONTROL + "a"); s.sendKeys(stir); qidiruvKut(driver, stir); }
-            WebElement r = rowWith(stir);
-            if (r == null) {
-                // broker balansi bitta karta ko'rinishida bo'lishi mumkin
-                String m = driver.findElement(By.tagName("main")).getText();
-                if (m.contains(stir)) System.out.println("BALANS (" + tab + ") matni: " + cut(m, 600));
-                continue;
-            }
-            List<WebElement> tds = r.findElements(By.cssSelector("td"));
-            List<BigDecimal> nums = new ArrayList<>();
-            for (WebElement td : tds) {
-                String v = td.getText().replace("UZS", "").replace(" ", "").replace(" ", "").trim();
-                if (v.matches("-?\\d+(\\.\\d+)?") && !v.equals(stir) && v.length() < 20) nums.add(new BigDecimal(v));
-                else if (v.isEmpty() && nums.size() > 0) nums.add(BigDecimal.ZERO);
-            }
-            System.out.println("BALANS (" + tab + ") " + stir + ": " + clean(r.getText()));
-            while (nums.size() < 4) nums.add(BigDecimal.ZERO);
-            return nums.subList(nums.size() - 4, nums.size()).toArray(new BigDecimal[0]);
-        }
-        System.out.println("BALANS: " + stir + " topilmadi");
-        rasm("balans_" + stir);
-        return null;
-    }
-
-    /** HKKP -> Balans -> Broker balansi: shu bitim raqami yozilgan operatsiyalar. */
-    List<String> operatsiyalar(String no) {
-        driver.get(base + "/uz/trader/hkkp/transaction");
-        jadvalKut(driver);
-        WebElement b = visible(driver, By.xpath("//main//*[normalize-space(text())='Broker balansi']"));
-        if (b != null) { jsClick(driver, b); jadvalKut(driver); }
-        WebElement s = visible(driver, By.cssSelector("main input[placeholder='Qidirish']"));
-        if (s != null) { s.sendKeys(Keys.CONTROL + "a"); s.sendKeys(no); qidiruvKut(driver, no); }
-        List<String> r = new ArrayList<>();
-        for (WebElement tr : driver.findElements(By.cssSelector("main tbody tr")))
-            try { String tx = clean(tr.getText()); if (tx.contains(no)) r.add(tx.replaceFirst("^[0-9]+ [|] ", "")); } catch (Exception ignore) {}
-        System.out.println("OPERATSIYALAR " + no + ": " + r);
-        return r;
     }
 
     void rasm(String name) {

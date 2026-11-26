@@ -146,8 +146,9 @@ Har bir stsenariy o'z bitimida, 8-bitimga tegilmaydi. **Xaridor hisobi ichiga ki
 | 7 | Yetkazib berish muddatini uzaytirish | B26000406 | ✅ | 09.12 → 11.12; rad: o'zgarmadi |
 | 8 | Tegilmagan bitim | B26000407 | ✅ | «To'lov kutilmoqda», hisobda faqat 4 ta boshlang'ich operatsiya |
 | 9 | Shartnoma va to'lov chekini yuklab olish | B26000400 | ❌ | Server 400 (5-bo'lim) |
+| 9a | Xaridor: alohida va «Barchasini yuklab olish» (26.11 17:25, 17:31) | B26000488 | ✅ | 15:27 da shu bitimda 400 edi, keyin ikkala usulda ham 2 ta haqiqiy PDF tushdi |
 
-Yuklash faqat bitta to'langan kontraktda, bir marta bajariladi. Faylning butun PDF ekani tekshiriladi, ichidagi matn tekshirilmaydi.
+Yuklash faqat bitta to'langan kontraktda, bir marta bajariladi. Endi «Barchasini yuklab olish» ham tekshiriladi (ZIP bo'lsa ichidagi fayllar soni). Server xato qaytarsa, xabar yo'qolgach bir marta qayta urinadi; birinchi xato logda qoladi. Faylning butun PDF ekani tekshiriladi, ichidagi matn tekshirilmaydi.
 
 YBHR tartibi: shartnoma raqami → faktura raqami, sana, miqdor → **xlsx hujjat yuklanadi** → «Ro'yxatga qo'shish» → «Yuborish» → xaridor YBHR sahifasida tasdiqlaydi.
 
@@ -183,7 +184,7 @@ Shundan keyingi o'zgarishlar (25.11 da sinaladi): balans HKKP dan o'qiladi (har 
 | # | Joy | Nima | Holat |
 |---|---|---|---|
 | 1 | Auksion taklifi (ms) | **999 999 999 lotga taklif qabul qilinadi** (10^15 so'm, hisobda ~9,3 mlrd), savatchada «Talab 1 000 000 107/100» | ❌ Sayt xatosi |
-| 2 | Shartnoma va to'lov cheki (ms) | `GET contract/create-pdf/{id}` va `contract/create-payment-pdf/{id}` → `400, state 1259, "Unexpected exception"`. Beqaror: B26000363 shartnomasi yuklanadi, cheki yo'q; B26000374 cheki bir marta yuklanib, keyin rad etildi; B26000382, 389 va 400 umuman yuklanmadi | ❌ Sayt xatosi |
+| 2 | Shartnoma va to'lov cheki (ms) | `GET contract/create-pdf/{id}` va `contract/create-payment-pdf/{id}` → `400, state 1259, "Unexpected exception"`. Beqaror: B26000363 shartnomasi yuklanadi, cheki yo'q; B26000374 cheki bir marta yuklanib, keyin rad etildi; B26000382, 389 va 400 umuman yuklanmadi. 26.11: B26000488 15:27 da 400, 17:25 va 17:31 da yuklandi | ❌ Sayt xatosi |
 | 3 | Moderator (admin1) kirishi (ms) | `400 /api/erp, state 1259`. Parol to'g'ri. 25.11: ~10:26 kirdi, 10:45 va ~10:48 kirmadi, ~10:59 va 11:03 kirdi, 11:25 kirmadi, ~11:58 dan keyingi 4 ta run'da kirdi | ❌ Sayt xatosi, beqaror |
 | 4 | Shartnomalar sahifasi (ms) | 11:14 atrofida bir marta 502 Bad Gateway | ❌ Sayt xatosi |
 | 5 | Qarama-qarshi auksion kontrakti (moderator, app) | Hujjat yuklanmasa ham kontrakt yaratiladi (treyder formasida rad etiladi) | ❌ Sayt xatosi |

@@ -340,14 +340,22 @@ public class BitimHolatlariTest extends BaseTest {
                     "const c=[...arguments[0].querySelectorAll('svg')].filter(x=>{const r=x.getBoundingClientRect(); return r.width>0&&r.left>y.right&&Math.abs((r.top+r.height/2)-(y.top+y.height/2))<40;});" +
                     "c.sort((p,q)=>q.getBoundingClientRect().left-p.getBoundingClientRect().left); return c[0]||null;", dialog(), nom);
             Assert.assertNotNull(belgi, no + " " + who + ": '" + nom + "' yonida yuklash (⬇) belgisi topilmadi");
-            new org.openqa.selenium.interactions.Actions(driver).moveToElement(belgi).click().perform();
             File tushdi = null;
             Set<String> xabar = new LinkedHashSet<>();
-            for (long end = System.currentTimeMillis() + 15_000; tushdi == null && System.currentTimeMillis() < end; sleep(200)) {
-                for (String x : toasts(driver)) if (!x.isBlank()) xabar.add(x);
-                File[] fs = dir.listFiles();
-                if (fs != null) for (File x : fs) if (!x.getName().endsWith(".crdownload") && !x.getName().endsWith(".tmp") && x.length() > 0) tushdi = x;
-                if (tushdi == null && xabar.stream().anyMatch(x -> x.contains("exception") || x.startsWith("4") || x.startsWith("5"))) break; // server rad etdi
+            // server ba'zan vaqtincha 400 qaytaradi: xatoda bir marta qayta urinamiz (xato logda qoladi)
+            for (int u = 0; u < 2 && tushdi == null; u++) {
+                if (u > 0) {
+                    System.out.println("YUKLASH " + no + " " + who + " '" + nom + "': sayt xabari " + xabar + ", qayta urinilmoqda");
+                    toastlarYoqolsin();
+                    xabar.clear();
+                }
+                new org.openqa.selenium.interactions.Actions(driver).moveToElement(belgi).click().perform();
+                for (long end = System.currentTimeMillis() + 15_000; tushdi == null && System.currentTimeMillis() < end; sleep(200)) {
+                    for (String x : toasts(driver)) if (!x.isBlank()) xabar.add(x);
+                    File[] fs = dir.listFiles();
+                    if (fs != null) for (File x : fs) if (!x.getName().endsWith(".crdownload") && !x.getName().endsWith(".tmp") && x.length() > 0) tushdi = x;
+                    if (tushdi == null && serverRadEtdi(xabar)) break;
+                }
             }
             if (tushdi == null) { // boshqa fayl ham tekshirilishi uchun to'xtamaymiz
                 hujjatXatolar.add(no + " " + who + " '" + nom + "': yuklanmadi, sayt xabari " + xabar);
@@ -363,6 +371,97 @@ public class BitimHolatlariTest extends BaseTest {
                 Assert.assertTrue(pdf, no + " " + who + ": " + tushdi.getName() + " butun PDF emas (" + b.length + " bayt, boshi '" + bosh + "')");
             } catch (java.io.IOException e) { throw new AssertionError("Fayl o'qilmadi: " + tushdi, e); }
         }
+        barchasiniYuklash(who, tab, no, papka, fayllar.size());
+    }
+
+    static boolean serverRadEtdi(Set<String> xabar) {
+        return xabar.stream().anyMatch(x -> x.contains("exception") || x.startsWith("4") || x.startsWith("5"));
+    }
+
+    /** Qayta urinishdan oldin: eski xato xabari yo'qolguncha (ko'pi bilan 8 s), keyin yana 2 s server tayyorlanishi uchun. */
+    void toastlarYoqolsin() {
+        waitFor(() -> toasts(driver).stream().allMatch(String::isBlank) ? Boolean.TRUE : null, 8);
+        sleep(2000);
+    }
+
+    /** "Barchasini yuklab olish" tugmasi:hamma fayl (alohida PDF lar yoki bitta ZIP) diskka tushishi kerak. */
+    void barchasiniYuklash(String who, String tab, String no, String papka, int kutilgan) {
+        File dir = new File(papka + "/barchasi").getAbsoluteFile();
+        dir.mkdirs();
+        ((org.openqa.selenium.chrome.ChromeDriver) driver).executeCdpCommand("Browser.setDownloadBehavior", java.util.Map.of("behavior", "allow", "downloadPath", dir.getPath()));
+        if (dialog() == null) { // oyna yopilgan bo'lsa qayta ochiladi
+            menyu(bitimQatori(tab, no), "Shartnomani yuklab olish");
+            waitFor(() -> { WebElement d = dialog(); return d != null && d.getText().contains(".pdf") ? Boolean.TRUE : null; }, 15);
+        }
+        WebElement d = dialog();
+        WebElement btn = d == null ? null : d.findElements(By.xpath(".//*[self::button or @role='button' or self::a][contains(normalize-space(.),'Barchasini yuklab olish')]"))
+                .stream().filter(WebElement::isDisplayed).findFirst().orElse(null);
+        if (btn == null) {
+            hujjatXatolar.add(no + " " + who + ": 'Barchasini yuklab olish' tugmasi topilmadi");
+            System.out.println("YUKLASH " + no + " " + who + " 'Barchasini yuklab olish': TUGMA TOPILMADI");
+            return;
+        }
+        List<File> tushgan = new ArrayList<>();
+        Set<String> xabar = new LinkedHashSet<>();
+        for (int u = 0; u < 2 && tushgan.isEmpty(); u++) {
+            if (u > 0) {
+                System.out.println("YUKLASH " + no + " " + who + " 'Barchasini yuklab olish': sayt xabari " + xabar + ", qayta urinilmoqda");
+                toastlarYoqolsin();
+                xabar.clear();
+            }
+            new org.openqa.selenium.interactions.Actions(driver).moveToElement(btn).click().perform();
+            for (long end = System.currentTimeMillis() + 20_000; System.currentTimeMillis() < end; sleep(300)) {
+                for (String x : toasts(driver)) if (!x.isBlank()) xabar.add(x);
+                tushgan.clear();
+                File[] fs = dir.listFiles();
+                boolean chalaBor = false;
+                if (fs != null) for (File x : fs) {
+                    if (x.getName().endsWith(".crdownload") || x.getName().endsWith(".tmp")) chalaBor = true;
+                    else if (x.length() > 0) tushgan.add(x);
+                }
+                boolean zip = tushgan.stream().anyMatch(x -> x.getName().toLowerCase().endsWith(".zip"));
+                if (!chalaBor && (zip || tushgan.size() >= kutilgan)) break;
+                if (tushgan.isEmpty() && serverRadEtdi(xabar)) break;
+            }
+        }
+        rasm("yuklash_barchasi_" + no + "_" + who);
+        if (tushgan.isEmpty()) {
+            hujjatXatolar.add(no + " " + who + " 'Barchasini yuklab olish': yuklanmadi, sayt xabari " + xabar);
+            System.out.println("YUKLASH " + no + " " + who + " 'Barchasini yuklab olish': YUKLANMADI, sayt xabari " + xabar);
+            return;
+        }
+        for (File f : tushgan) {
+            try {
+                byte[] b = java.nio.file.Files.readAllBytes(f.toPath());
+                String bosh = new String(b, 0, Math.min(5, b.length), java.nio.charset.StandardCharsets.ISO_8859_1);
+                if (bosh.startsWith("PK")) { // ZIP: ichidagi fayllar sanaladi
+                    List<String> ichida = new ArrayList<>();
+                    try (java.util.zip.ZipInputStream z = new java.util.zip.ZipInputStream(new java.io.ByteArrayInputStream(b))) {
+                        for (java.util.zip.ZipEntry e; (e = z.getNextEntry()) != null; ) ichida.add(e.getName());
+                    }
+                    System.out.println("YUKLASH " + no + " " + who + " 'Barchasini yuklab olish': " + f.getName() + " (ZIP, " + b.length / 1024 + " KB), ichida: " + ichida
+                            + (ichida.size() >= kutilgan ? " ✓" : ""));
+                    if (ichida.size() < kutilgan) hujjatXatolar.add(no + " " + who + " 'Barchasini yuklab olish': ZIP ichida " + ichida.size() + " ta fayl, kutilgan " + kutilgan + ": " + ichida);
+                } else {
+                    String oxir = new String(b, Math.max(0, b.length - 1024), Math.min(1024, b.length), java.nio.charset.StandardCharsets.ISO_8859_1);
+                    boolean pdf = bosh.startsWith("%PDF") && oxir.contains("%%EOF") && b.length > 1000;
+                    System.out.println("YUKLASH " + no + " " + who + " 'Barchasini yuklab olish': " + f.getName() + ", " + b.length / 1024 + " KB" + (pdf ? ", haqiqiy PDF ✓" : " - PDF EMAS"));
+                    if (!pdf) hujjatXatolar.add(no + " " + who + " 'Barchasini yuklab olish': " + f.getName() + " butun PDF emas");
+                }
+            } catch (java.io.IOException e) { hujjatXatolar.add(no + " " + who + ": " + f.getName() + " o'qilmadi: " + e.getMessage()); }
+        }
+        boolean zipBor = tushgan.stream().anyMatch(x -> x.getName().toLowerCase().endsWith(".zip"));
+        if (!zipBor && tushgan.size() < kutilgan) hujjatXatolar.add(no + " " + who + " 'Barchasini yuklab olish': " + tushgan.size() + " ta fayl tushdi, kutilgan " + kutilgan);
+    }
+
+    /** Faqat hujjat yuklash (alohida): -Dbitim.yuklash=B... ; kim: -Dyuklash.kim=trader2 (xaridor, sukut) yoki trader1 (sotuvchi). */
+    @Test(priority = 31, description = "Faqat hujjat yuklash: alohida fayllar va 'Barchasini yuklab olish'")
+    public void faqatHujjatYuklash() {
+        String no = System.getProperty("bitim.yuklash");
+        if (no == null) throw new org.testng.SkipException("Faqat qo'lda: -Dbitim.yuklash=B... bilan");
+        String who = System.getProperty("yuklash.kim", "trader2");
+        hujjatlarniYuklash(who, who.equals("trader2") ? "Sotib olish" : "Sotish", no, true);
+        Assert.assertTrue(hujjatXatolar.isEmpty(), "Hujjat yuklanmadi: " + hujjatXatolar);
     }
 
     /** Faqat to'lov (alohida ishga tushirish uchun): -Dbitim.tolov=B... */

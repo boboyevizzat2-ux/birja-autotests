@@ -25,7 +25,7 @@ public final class Moderator {
         for (int t = 0; t < 5; t++) {
             for (WebElement e : d.findElements(By.xpath("//span[contains(@class,'w-fit')]")))
                 try { if (e.isDisplayed() && e.getText().contains("MODERATOR")) { jsClick(d, e); break; } } catch (Exception ignore) {}
-            WebElement item = waitFor(() -> visible(d, By.xpath("//span[normalize-space(.)='Rol almashtrish']")), 3);
+            WebElement item = waitFor(() -> visible(d, By.xpath("//span[normalize-space(.)='Rol almashtrish' or normalize-space(.)='Rol almashtirish']")), 3);
             if (item != null) { item.click(); break; }
         }
         jsClick(d, waitFor(() -> lastVisible(d, By.xpath("//div[normalize-space(text())='" + role + "']")), 5));
